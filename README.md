@@ -1,4 +1,4 @@
-# Eye_lean
+# EYE-LEAN
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20040453.svg)](https://doi.org/10.5281/zenodo.20040453)
 [![PyPI](https://img.shields.io/pypi/v/eyelean-analysis.svg)](https://pypi.org/project/eyelean-analysis/)
