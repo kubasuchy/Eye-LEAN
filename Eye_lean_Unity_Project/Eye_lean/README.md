@@ -206,10 +206,13 @@ CSVs and profile JSONs land in the same directory.
 
 ```bibtex
 @software{eye_lean_toolkit,
-  title = {{EYE-LEAN} (Locomotion, Exploration, Action, and Navigation with Eye Tracking): a Behavioral Research Toolkit for Data Rich Virtual Reality Experiments},
-  author = {Suchojad, Jakub and Dalawella, Kavindya and DeStefani, Serena and Stromswold, Karin and Feldman, Jacob},
-  year = {2026},
-  url = {https://github.com/kubasuchy/EYE-LEAN}
+  title     = {{EYE-LEAN} (Locomotion, Exploration, Action, and Navigation with Eye Tracking): a Behavioral Research Toolkit for Data Rich Virtual Reality Experiments},
+  author    = {Suchojad, Jakub and Dalawella, Kavindya and DeStefani, Serena and Stromswold, Karin and Feldman, Jacob},
+  year      = {2026},
+  publisher = {Zenodo},
+  version   = {v1.0.0},
+  doi       = {10.5281/zenodo.20040453},
+  url       = {https://doi.org/10.5281/zenodo.20040453}
 }
 ```
 

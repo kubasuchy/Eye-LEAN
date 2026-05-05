@@ -60,9 +60,14 @@ sidecars as optional joins.
 Python 3.9+ is supported.
 
 ```bash
+# Stable release from PyPI (recommended for users):
+pip install eyelean-analysis
+pip install "eyelean-analysis[all]"          # + visualization, jupyter, batch, …
+
+# Development install from a local clone (recommended for contributors):
 pip install -e ./eyelean_analysis            # core
 pip install -e "./eyelean_analysis[test]"    # core + pytest + PyWavelets
-pip install -e "./eyelean_analysis[all]"     # everything (visualization, jupyter, batch, …)
+pip install -e "./eyelean_analysis[all]"     # everything
 ```
 
 Optional extras declared in `pyproject.toml`:
@@ -621,6 +626,25 @@ the subpackages they live in):
   *PLOS ONE*.
 - Salvucci, D. D., & Goldberg, J. H. (2000). Identifying fixations
   and saccades in eye-tracking protocols. *ETRA*.
+
+## Citation
+
+```bibtex
+@software{eye_lean_toolkit,
+  title     = {{EYE-LEAN} (Locomotion, Exploration, Action, and Navigation with Eye Tracking): a Behavioral Research Toolkit for Data Rich Virtual Reality Experiments},
+  author    = {Suchojad, Jakub and Dalawella, Kavindya and DeStefani, Serena and Stromswold, Karin and Feldman, Jacob},
+  year      = {2026},
+  publisher = {Zenodo},
+  version   = {v1.0.0},
+  doi       = {10.5281/zenodo.20040453},
+  url       = {https://doi.org/10.5281/zenodo.20040453}
+}
+```
+
+See [`../CITATION.cff`](../CITATION.cff) and
+[`../ACKNOWLEDGMENTS.md`](../ACKNOWLEDGMENTS.md) for the full citation
+table covering RIPA2 (Jayawardena 2025), LHIPA (Duchowski 2018),
+K-coefficient, and others.
 
 ## License
 
