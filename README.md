@@ -10,8 +10,8 @@
 
 Eye_lean is a Unity + Python toolkit for collecting and analyzing
 eye-tracking data from virtual-reality head-mounted displays. The Unity
-project runs on Android-based VIVE Focus Vision headsets and writes
-per-frame binocular gaze, pupil, and head-tracking data to CSV. The
+project was tested on the VIVE Focus Vision headsets (but is built on the OpenXR standard)
+and writes per-frame binocular gaze, pupil, and head-tracking data to CSV. The
 Python package loads those CSVs, detects fixations and saccades,
 computes attention and cognitive-load metrics (K-coefficient, RIPA2,
 LHIPA, gaze entropy), and visualizes results. The two halves are
@@ -21,13 +21,13 @@ from any source that matches the schema.
 
 ## Audience
 
-Anyone evaluating, installing, or citing Eye_lean.
+Behavioral researchers who want to conduct VR experiments with eye tracking.
 
 ## Prerequisites
 
 - Unity 6000.3.9f1 (Unity-side work)
 - VIVE OpenXR 2.5.1
-- HTC VIVE Focus Vision (or another OpenXR eye-tracking headset)
+- HTC VIVE Focus Vision (or another OpenXR eye-tracking headset - NOT TESTED)
 - Python 3.10+ (analysis side)
 
 ---
