@@ -279,6 +279,7 @@ interface and registering it with the factory.
 adb pull /sdcard/Android/data/com.RutgersVLC.Eye_lean/files/ ./Logs/
 adb logcat -s Unity                          # live logs
 ```
+Or use Android Studio / Android File Transfer to download the files from the headset.
 
 CSVs and profile JSONs land in the same directory; the explore
 notebook expects them in `Logs/` at the repo root.
