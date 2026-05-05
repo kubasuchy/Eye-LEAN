@@ -21,6 +21,14 @@ authors:
     affiliation: "Rutgers University"
 repository-code: "https://github.com/kubasuchy/EYE-LEAN"
 url: "https://github.com/kubasuchy/EYE-LEAN"
+doi: 10.5281/zenodo.20040453
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.20040453
+    description: "Zenodo concept DOI — resolves to the latest release"
+  - type: doi
+    value: 10.5281/zenodo.20040454
+    description: "Zenodo version DOI — pinned to v1.0.0"
 abstract: >
   Eye_lean is a Unity + Python toolkit for collecting and analyzing
   eye-tracking data from VR head-mounted displays. It ships a

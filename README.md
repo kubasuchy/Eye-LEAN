@@ -1,5 +1,9 @@
 # Eye_lean
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20040453.svg)](https://doi.org/10.5281/zenodo.20040453)
+[![PyPI](https://img.shields.io/pypi/v/eyelean-analysis.svg)](https://pypi.org/project/eyelean-analysis/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 **EYE-LEAN** (**L**ocomotion, **E**xploration, **A**ction, and **N**avigation with **Eye** Tracking): a Behavioral Research Toolkit for Data Rich Virtual Reality Experiments.
 
 ## What it is
@@ -285,11 +289,13 @@ notebook expects them in `Logs/` at the repo root.
 
 ```bibtex
 @software{eye_lean_toolkit,
-  title  = {{EYE-LEAN} (Locomotion, Exploration, Action, and Navigation with Eye Tracking): a Behavioral Research Toolkit for Data Rich Virtual Reality Experiments},
-  author = {Suchojad, Jakub and Dalawella, Kavindya and DeStefani, Serena and Stromswold, Karin and Feldman, Jacob},
-  year   = {2026},
-  note   = {Rutgers University; Ohio State University},
-  url    = {https://github.com/kubasuchy/EYE-LEAN}
+  title     = {{EYE-LEAN} (Locomotion, Exploration, Action, and Navigation with Eye Tracking): a Behavioral Research Toolkit for Data Rich Virtual Reality Experiments},
+  author    = {Suchojad, Jakub and Dalawella, Kavindya and DeStefani, Serena and Stromswold, Karin and Feldman, Jacob},
+  year      = {2026},
+  publisher = {Zenodo},
+  version   = {v1.0.0},
+  doi       = {10.5281/zenodo.20040453},
+  url       = {https://doi.org/10.5281/zenodo.20040453}
 }
 ```
 
