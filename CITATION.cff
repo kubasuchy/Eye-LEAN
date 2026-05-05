@@ -1,0 +1,44 @@
+cff-version: 1.2.0
+title: "EYE-LEAN (Locomotion, Exploration, Action and Navigation with Eye Tracking): a Behavioral Research Toolkit for Data Rich Virtual Reality Experiments"
+message: "If you use Eye_lean in research, please cite this toolkit and the underlying algorithms (LHIPA: Duchowski 2018; RIPA2: Jayawardena 2025)."
+type: software
+authors:
+  - family-names: Suchojad
+    given-names: Jakub
+    affiliation: "Visual Cognition Lab, Rutgers University–New Brunswick"
+    email: jhs212@scarletmail.rutgers.edu
+  - family-names: Dalawella
+    given-names: Kavindya
+    affiliation: "Rutgers University"
+  - family-names: DeStefani
+    given-names: Serena
+    affiliation: "Ohio State University"
+  - family-names: Stromswold
+    given-names: Karin
+    affiliation: "Rutgers University"
+  - family-names: Feldman
+    given-names: Jacob
+    affiliation: "Rutgers University"
+repository-code: "https://github.com/kubasuchy/EYE-LEAN"
+url: "https://github.com/kubasuchy/EYE-LEAN"
+abstract: >
+  Eye_lean is a Unity + Python toolkit for collecting and analyzing
+  eye-tracking data from VR head-mounted displays. It ships a
+  calibrator with per-user profile correction, a deterministic-replay
+  system that reproduces recordings frame-accurately, a real-time
+  cognitive-load monitor (RIPA2), and a researcher template
+  (Skeleton) for building custom VR behavioral experiments.
+keywords:
+  - "eye tracking"
+  - "virtual reality"
+  - pupillometry
+  - "cognitive load"
+  - RIPA
+  - LHIPA
+  - "behavioral research"
+  - VIVE
+  - OpenXR
+  - Unity
+license: MIT
+version: "1.0.0"
+date-released: 2026-05-05

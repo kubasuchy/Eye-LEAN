@@ -1,0 +1,26 @@
+{
+    "name": "EyeLean.Tests.EditMode",
+    "rootNamespace": "",
+    "references": [
+        "EyeLean.Core",
+        "EyeLean.Replay",
+        "EyeLean.Skeleton",
+        "UnityEngine.TestRunner",
+        "UnityEditor.TestRunner"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

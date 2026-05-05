@@ -1,0 +1,23 @@
+{
+    "name": "EyeLean.Editor",
+    "rootNamespace": "",
+    "references": [
+        "EyeLean.Core",
+        "EyeLean.Replay",
+        "EyeLean.MainMenu",
+        "EyeLean.SampleDemo",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

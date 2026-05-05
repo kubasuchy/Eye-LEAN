@@ -1,0 +1,98 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eyelean-analysis"
+version = "1.0.0"
+description = "Analysis toolkit for EYE-LEAN (Locomotion, Exploration, Action, and Navigation with Eye Tracking) — Python half of the Eye_lean VR behavioral-research toolkit"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Jakub Suchojad", email = "jhs212@scarletmail.rutgers.edu"}
+]
+maintainers = [
+    {name = "Jakub Suchojad", email = "jhs212@scarletmail.rutgers.edu"}
+]
+keywords = [
+    "eye-tracking",
+    "vr",
+    "virtual-reality",
+    "gaze-analysis",
+    "pupillometry",
+    "lhipa",
+    "k-coefficient",
+    "cognitive-load"
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Human Machine Interfaces",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.21.0",
+    "pandas>=1.3.0",
+    "scipy>=1.7.0",
+]
+
+[project.optional-dependencies]
+wavelet = [
+    "PyWavelets>=1.1.0",
+]
+visualization = [
+    "matplotlib>=3.4.0",
+]
+batch = [
+    "joblib>=1.0.0",
+    "tqdm>=4.60.0",
+]
+jupyter = [
+    "jupyter>=1.0.0",
+    "jupyterlab>=3.0.0",
+    "ipywidgets>=7.6.0",
+]
+export = [
+    "pyreadstat>=1.1.0",  # SPSS export
+]
+test = [
+    "pytest>=7.0",
+    "PyWavelets>=1.1.0",
+]
+all = [
+    "PyWavelets>=1.1.0",
+    "matplotlib>=3.4.0",
+    "joblib>=1.0.0",
+    "tqdm>=4.60.0",
+    "jupyter>=1.0.0",
+    "jupyterlab>=3.0.0",
+    "ipywidgets>=7.6.0",
+    "pyreadstat>=1.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/kubasuchy/EYE-LEAN"
+Documentation = "https://github.com/kubasuchy/EYE-LEAN/tree/main/docs"
+Repository = "https://github.com/kubasuchy/EYE-LEAN"
+Issues = "https://github.com/kubasuchy/EYE-LEAN/issues"
+
+[tool.setuptools]
+package-dir = {"eyelean_analysis" = "."}
+packages = ["eyelean_analysis", "eyelean_analysis.batch", "eyelean_analysis.calibration", "eyelean_analysis.classification", "eyelean_analysis.data", "eyelean_analysis.experiments", "eyelean_analysis.filters", "eyelean_analysis.metrics", "eyelean_analysis.visualization"]
+
+[tool.setuptools.package-data]
+"eyelean_analysis" = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]

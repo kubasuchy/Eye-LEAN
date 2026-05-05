@@ -1,0 +1,19 @@
+{
+    "name": "EyeLean.Skeleton.Editor",
+    "rootNamespace": "EyeLean.Skeleton.Editor",
+    "references": [
+        "EyeLean.Skeleton",
+        "EyeLean.Core"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

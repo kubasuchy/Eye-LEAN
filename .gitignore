@@ -1,0 +1,130 @@
+# ============================================
+# Eye_lean Project .gitignore
+# ============================================
+
+# -------------------- Unity --------------------
+# Unity generated folders
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Mm]emoryCaptures/
+[Uu]ser[Ss]ettings/
+
+# Unity backup folders (IL2CPP output, Burst debug)
+*_BackUpThisFolder_ButDontShipItWithYourGame/
+*_BurstDebugInformation_DoNotShip/
+
+# Unity build artifacts
+*.apk
+*.aab
+*.unitypackage
+AssetBundles/
+
+# Unity crash dumps
+mono_crash.*.json
+crash_*.txt
+
+# Debug logs
+DebugLogs/
+
+# -------------------- Visual Studio / IDE --------------------
+.vs/
+.vscode/
+*.csproj
+*.unityproj
+*.sln
+*.slnx
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Rider
+.idea/
+*.iml
+
+# -------------------- macOS --------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+
+# -------------------- Python --------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# -------------------- Project-Specific --------------------
+# Components staged for future Eye_lean versions (Graphyte GUI for v2.0,
+# anything else researchers move into a future/<component>/ subtree).
+# Not part of the v1.0 public release.
+future/
+
+# Internal development docs (release checklists, planning notes — not for public repo)
+INTERNAL/
+RELEASE.md
+PUBLISHING_WALKTHROUGH.md
+
+# Per-session release-progress tracker maintained by Claude across sessions
+.claude_progress/
+
+# Claude AI metadata
+.claude/
+
+# Log files
+*.log
+
+# Temporary files
+.utmp/
+
+# 3D models — re-imported per recording, not source-controlled
+*.fbx
+*.fbx.meta
+
+# Microsoft Rocketbox avatars — researcher-side install (12 GB).
+# See docs/SKELETON_AGENTS.md for setup instructions.
+Eye_lean_Unity_Project/Eye_lean/Assets/RocketBox/
+Eye_lean_Unity_Project/Eye_lean/Assets/RocketBox.meta

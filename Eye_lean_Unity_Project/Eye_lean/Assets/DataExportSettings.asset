@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9a7df0429ed6348f5b651b187b552974, type: 3}
+  m_Name: DataExportSettings
+  m_EditorClassIdentifier: Assembly-CSharp::EyeTracking.Configuration.DataExportSettings
+  EnableDataCollection: 1
+  CollectionInterval: 1
+  BlinkThreshold: 0.2
+  MinBlinkDuration: 0.1
+  StuckRayThreshold: 0.001
+  StuckRayFrameThreshold: 60
+  EnableCSVExport: 1
+  CSVFlushInterval: 60
+  IncludeHeaderComments: 1
+  HighPrecisionTimestamps: 1
+  ExportSessionMetadata: 1
+  ExportQualitySummary: 1
+  DataSubdirectory: EyeTrackingData
+  CSVFilePrefix: GazeData
+  JSONFilePrefix: SessionInfo
+  GoodQualityThreshold: 85
+  AcceptableQualityThreshold: 70
+  LogStatistics: 0
+  StatisticsLogInterval: 10

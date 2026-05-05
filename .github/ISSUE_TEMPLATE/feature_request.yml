@@ -1,0 +1,49 @@
+name: Feature request
+description: Suggest a new capability or improvement
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement. Eye_lean is a small
+        research-focused project; please describe the workflow your
+        request would enable so we can weigh scope against the toolkit's
+        focus.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected component
+      options:
+        - Unity toolkit (data collection)
+        - Python analysis package
+        - Replay system (editor)
+        - Calibration / profile system
+        - Sample experiment
+        - Documentation
+        - New analysis algorithm or metric
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Researcher workflow
+      description: |
+        What are you trying to accomplish? "I'm running an N=30 study
+        and need X to compare conditions" is more useful than "add X".
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach (optional)
+      description: How might this be implemented? API sketch, references, etc.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Existing tools, custom scripts, or workarounds.

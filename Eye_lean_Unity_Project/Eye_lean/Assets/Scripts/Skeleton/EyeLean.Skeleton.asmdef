@@ -1,0 +1,22 @@
+{
+    "name": "EyeLean.Skeleton",
+    "rootNamespace": "EyeLean.Skeleton",
+    "references": [
+        "EyeLean.Core",
+        "EyeLean.Replay",
+        "Unity.TextMeshPro",
+        "Unity.InputSystem",
+        "Unity.Mathematics",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "Unity.XR.CoreUtils"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

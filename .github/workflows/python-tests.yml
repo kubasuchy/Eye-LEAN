@@ -1,0 +1,50 @@
+name: Python tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'eyelean_analysis/**'
+      - '.github/workflows/python-tests.yml'
+  pull_request:
+    paths:
+      - 'eyelean_analysis/**'
+      - '.github/workflows/python-tests.yml'
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install package + test extras
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -e "./eyelean_analysis[test,visualization]"
+
+      - name: Run pytest
+        working-directory: eyelean_analysis
+        run: pytest -v
+
+      - name: Smoke-execute notebooks
+        if: matrix.python-version == '3.11'
+        run: |
+          python -m pip install nbconvert ipykernel
+          for nb in eyelean_analysis/notebooks/examples/0*.ipynb; do
+            echo "=== $(basename "$nb") ==="
+            python -m nbconvert --to notebook --execute "$nb" \
+              --output "/tmp/$(basename "$nb")" \
+              --ExecutePreprocessor.timeout=300
+          done
