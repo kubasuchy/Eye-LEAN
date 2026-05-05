@@ -19,6 +19,8 @@ designed to work together but can also be used independently: the CSV
 format is documented and stable, and the analysis package accepts data
 from any source that matches the schema.
 
+In memory of Professor Eileen Kowler.
+
 ## Audience
 
 Behavioral researchers who want to conduct VR experiments with eye tracking.
