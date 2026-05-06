@@ -103,3 +103,62 @@ def test_stationary_vs_transition_entropy():
     assert np.isfinite(t) and t > 0
     # Stationary entropy ≤ log2(12*12) ≈ 7.17
     assert s <= np.log2(12 * 12) + 1e-6
+
+
+class TestTransitionEntropyAOIMode:
+    """Canonical Krejtz 2015 GTE input mode: explicit AOI labels."""
+
+    def test_two_state_uniform_chain_matches_hand_calculation(self):
+        # Sequence [0, 1, 0, 1, 0, 1, ...]: every state goes to the
+        # other state with P=1; conditional entropy is 0 (deterministic
+        # transitions).
+        seq = np.tile([0, 1], 50)
+        h = transition_entropy(aoi_sequence=seq)
+        assert h == pytest.approx(0.0, abs=1e-12)
+
+    def test_random_two_state_chain_approaches_one_bit(self):
+        # Independent uniform 50/50 transitions: P(j|i) = 0.5 for all
+        # (i,j); H_t = log2(2) = 1 bit, asymptotically. With finite
+        # sample size we check approach to 1 within tolerance.
+        rng = np.random.default_rng(3)
+        seq = rng.integers(0, 2, size=20000)
+        h = transition_entropy(aoi_sequence=seq, n_aois=2)
+        assert h == pytest.approx(1.0, abs=0.02)
+
+    def test_three_state_dirichlet_chain_under_log2_n(self):
+        # H_t for any n-state Markov chain is upper-bounded by log2(n).
+        rng = np.random.default_rng(4)
+        seq = rng.integers(0, 3, size=10000)
+        h = transition_entropy(aoi_sequence=seq, n_aois=3)
+        assert 0 < h <= np.log2(3) + 1e-9
+
+    def test_too_short_sequence_returns_zero(self):
+        assert transition_entropy(aoi_sequence=np.array([0])) == 0.0
+        assert transition_entropy(aoi_sequence=np.array([])) == 0.0
+
+    def test_n_aois_inferred_when_not_passed(self):
+        # Sequence uses labels {0,1,2}; n_aois is inferred from max + 1.
+        seq = np.array([0, 1, 2, 1, 0, 2, 1])
+        h_inferred = transition_entropy(aoi_sequence=seq)
+        h_explicit = transition_entropy(aoi_sequence=seq, n_aois=3)
+        assert h_inferred == pytest.approx(h_explicit, abs=1e-12)
+
+    def test_aoi_mode_and_spatial_mode_produce_different_values(self):
+        # Same fixation centroids fed in both modes should disagree (the
+        # spatial-proxy mode buckets into 12×12 cells that don't match
+        # the user-defined 3 AOIs).
+        rng = np.random.default_rng(7)
+        n = 500
+        x = rng.uniform(-1, 1, n)
+        y = rng.uniform(-1, 1, n)
+        seq = ((x > 0).astype(int) + (y > 0).astype(int))  # 3 AOIs: 0, 1, 2
+        h_aoi = transition_entropy(aoi_sequence=seq, n_aois=3)
+        h_spatial = transition_entropy(x, y, horizontal_bins=12, vertical_bins=12)
+        assert abs(h_aoi - h_spatial) > 0.1, (
+            "AOI-mode GTE happens to match spatial-proxy GTE — pick "
+            "different test data."
+        )
+
+    def test_calling_with_no_arguments_raises(self):
+        with pytest.raises(ValueError):
+            transition_entropy()

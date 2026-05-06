@@ -84,17 +84,13 @@ namespace EyeLean.Replay.Analysis
         public float minSaccadeDuration = AnalysisConstants.MIN_SACCADE_DURATION;
 
         [Header("K-Coefficient Settings")]
-        [Tooltip("Window size for K-coefficient calculation (frames)")]
+        [Tooltip("Number of fixation/saccade pairs to keep in the K-coefficient ring buffer.")]
         [Range(10, 100)]
         public int kCoefficientWindow = AnalysisConstants.K_COEFFICIENT_WINDOW_SIZE;
 
-        [Tooltip("Threshold for focal attention (K > threshold). Standard value: 0.5 per Krejtz et al. (2016)")]
-        [Range(0.1f, 1.0f)]
-        public float focalThreshold = AnalysisConstants.K_COEFFICIENT_FOCAL_THRESHOLD;
-
-        [Tooltip("Threshold for ambient attention (K < -threshold). Standard value: 0.5 per Krejtz et al. (2016)")]
-        [Range(0.1f, 1.0f)]
-        public float ambientThreshold = AnalysisConstants.K_COEFFICIENT_AMBIENT_THRESHOLD;
+        [Tooltip("Visualisation-only neutral band: |K| < deadZone is reported as Neutral. Krejtz 2016 classifies by sign (deadZone = 0).")]
+        [Range(0f, 1.0f)]
+        public float kDeadZone = AnalysisConstants.K_COEFFICIENT_DEAD_ZONE;
 
         [Header("Smoothing")]
         [Tooltip("Enable velocity smoothing")]
@@ -323,16 +319,18 @@ namespace EyeLean.Replay.Analysis
         }
 
         /// <summary>
-        /// Get attention type from K-coefficient
+        /// Get attention type from K-coefficient.
+        ///
+        /// Per Krejtz 2016, classification is sign-based: K > 0 ⇒ focal,
+        /// K < 0 ⇒ ambient. The optional <see cref="kDeadZone"/> band
+        /// reports |K| &lt; deadZone as Neutral, purely for visualisation.
         /// </summary>
         public AttentionType ClassifyAttention(float kCoefficient)
         {
-            if (kCoefficient > focalThreshold)
-                return AttentionType.Focal;
-            else if (kCoefficient < -ambientThreshold)
-                return AttentionType.Ambient;
-            else
-                return AttentionType.Neutral;
+            if (float.IsNaN(kCoefficient)) return AttentionType.Unknown;
+            if (kCoefficient >  kDeadZone) return AttentionType.Focal;
+            if (kCoefficient < -kDeadZone) return AttentionType.Ambient;
+            return AttentionType.Neutral;
         }
 
         /// <summary>
@@ -398,25 +396,23 @@ namespace EyeLean.Replay.Analysis
         {
             if (inFixation)
             {
-                // End of fixation, start of saccade
+                // End of fixation, start of saccade.
                 float fixationDuration = timestamp - fixationStartTime;
 
+                // Record the (fixation_i, saccade_i) PAIR atomically: skip
+                // fixations shorter than minFixationDuration AND the saccade
+                // that follows them, so the two ring buffers remain index-
+                // aligned for the canonical K-coefficient (z(a_i) − z(d_i)
+                // requires paired data; advancing one queue without the
+                // other quietly desynchronises the metric).
                 if (fixationDuration >= minFixationDuration)
                 {
-                    // Valid fixation - record it
-                    fixationDurations.Enqueue(fixationDuration);
-                    while (fixationDurations.Count > kCoefficientWindow)
-                    {
-                        fixationDurations.Dequeue();
-                    }
-                }
+                    float saccadeAmplitude = Vector3.Angle(fixationStartDirection, gazeDirection);
 
-                // Record saccade amplitude
-                float saccadeAmplitude = Vector3.Angle(fixationStartDirection, gazeDirection);
-                saccadeAmplitudes.Enqueue(saccadeAmplitude);
-                while (saccadeAmplitudes.Count > kCoefficientWindow)
-                {
-                    saccadeAmplitudes.Dequeue();
+                    fixationDurations.Enqueue(fixationDuration);
+                    saccadeAmplitudes.Enqueue(saccadeAmplitude);
+                    while (fixationDurations.Count > kCoefficientWindow)  fixationDurations.Dequeue();
+                    while (saccadeAmplitudes.Count  > kCoefficientWindow) saccadeAmplitudes.Dequeue();
                 }
 
                 inFixation = false;
@@ -424,37 +420,61 @@ namespace EyeLean.Replay.Analysis
         }
 
         /// <summary>
-        /// Calculate K-coefficient based on recent fixation durations and saccade amplitudes.
-        /// K = (mean(fixation_duration) - mean(saccade_amplitude)) / (mean(fixation_duration) + mean(saccade_amplitude))
-        /// Normalized to range approximately -1.5 to +1.5
+        /// Calculate the K-coefficient per Krejtz et al. (2016, PLoS ONE Eq. 1):
+        ///
+        ///   K_i = (a_i − μ_a) / σ_a − (d_i − μ_d) / σ_d
+        ///   K   = mean_i(K_i)
+        ///
+        /// where d_i is fixation i's duration, a_i is the amplitude of the
+        /// saccade following fixation i, and the i-th entries of the two
+        /// ring buffers are kept index-aligned by HandleSaccadeDetected.
+        /// Magnitude is in standard-deviation units; classification is
+        /// sign-based (see ClassifyAttention).
         /// </summary>
         private float CalculateKCoefficient()
         {
-            if (fixationDurations.Count == 0 || saccadeAmplitudes.Count == 0)
-                return 0f;
+            int n = Mathf.Min(fixationDurations.Count, saccadeAmplitudes.Count);
+            // Need >= 2 paired samples for std with Bessel's correction.
+            if (n < 2) return 0f;
 
-            // Calculate means
-            float fixSum = 0f;
-            foreach (float f in fixationDurations) fixSum += f;
-            float meanFixation = fixSum / fixationDurations.Count;
+            // Snapshot the two queues (head-to-tail order) for indexed access.
+            // Both queues are bounded to kCoefficientWindow so allocation is small.
+            var d = new float[n];
+            var a = new float[n];
+            int i = 0;
+            foreach (float v in fixationDurations) { if (i < n) d[i++] = v; }
+            i = 0;
+            foreach (float v in saccadeAmplitudes) { if (i < n) a[i++] = v; }
 
-            float sacSum = 0f;
-            foreach (float s in saccadeAmplitudes) sacSum += s;
-            float meanSaccade = sacSum / saccadeAmplitudes.Count;
+            // Means.
+            float meanD = 0f, meanA = 0f;
+            for (int k = 0; k < n; k++) { meanD += d[k]; meanA += a[k]; }
+            meanD /= n; meanA /= n;
 
-            // Normalize saccade amplitude to similar scale as fixation duration
-            // Typical saccade: 2-20 degrees, typical fixation: 0.1-0.5 seconds
-            // Scale factor to bring them to similar magnitude
-            float normalizedSaccade = meanSaccade * 0.02f; // Convert degrees to ~seconds scale
+            // Sample standard deviations (ddof = 1, matching Krejtz / numpy default).
+            float sumSqD = 0f, sumSqA = 0f;
+            for (int k = 0; k < n; k++)
+            {
+                float dd = d[k] - meanD;
+                float da = a[k] - meanA;
+                sumSqD += dd * dd;
+                sumSqA += da * da;
+            }
+            float stdD = Mathf.Sqrt(sumSqD / (n - 1));
+            float stdA = Mathf.Sqrt(sumSqA / (n - 1));
+            // Degenerate spread (constant duration or constant amplitude in
+            // the window) leaves z-score undefined. Return 0 (not Inf/NaN);
+            // ClassifyAttention will surface this as Neutral.
+            if (stdD < 1e-6f || stdA < 1e-6f) return 0f;
 
-            float denom = meanFixation + normalizedSaccade;
-            if (denom < 0.001f)
-                return 0f;
-
-            float k = (meanFixation - normalizedSaccade) / denom;
-
-            // Clamp to reasonable range
-            return Mathf.Clamp(k, -1.5f, 1.5f);
+            float kSum = 0f;
+            for (int k = 0; k < n; k++)
+            {
+                float zD = (d[k] - meanD) / stdD;
+                float zA = (a[k] - meanA) / stdA;
+                kSum += zA - zD;
+            }
+            return kSum / n;
         }
 
         #endregion

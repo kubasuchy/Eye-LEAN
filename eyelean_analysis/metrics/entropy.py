@@ -430,43 +430,102 @@ def stationary_entropy(gaze_x: np.ndarray,
     return result.entropy if result.is_valid else np.nan
 
 
-def transition_entropy(gaze_x: np.ndarray,
-                       gaze_y: np.ndarray,
+def transition_entropy(gaze_x: Optional[np.ndarray] = None,
+                       gaze_y: Optional[np.ndarray] = None,
                        horizontal_bins: int = 12,
-                       vertical_bins: int = 12) -> float:
+                       vertical_bins: int = 12,
+                       *,
+                       aoi_sequence: Optional[np.ndarray] = None,
+                       n_aois: Optional[int] = None) -> float:
     """
-    Calculate gaze transition entropy (entropy of transitions between AOIs).
+    Gaze Transition Entropy (GTE) per Krejtz et al. (2015).
 
-    Measures the unpredictability of gaze transitions between regions.
+    GTE is the stationary-distribution-weighted conditional entropy of
+    a Markov chain over AOI labels:
 
-    Reference:
-        Krejtz, K., et al. (2016). Gaze transition entropy. ETRA '16.
+        H_t = − Σ_i π_i Σ_j P(j|i) log_2 P(j|i)
+            = − Σ_{i,j} P(i,j) log_2 P(j|i)        (algebraic identity)
+
+    where π_i is the empirical marginal of origin AOIs and P(j|i) the
+    estimated transition probability from i to j. Result is in bits.
+
+    Two input modes:
+
+    1. **Canonical (preferred) — explicit AOI labels.** Pass
+       ``aoi_sequence`` as a 1-D integer array of AOI indices, one per
+       fixation, in time order. ``n_aois`` is the size of the AOI
+       alphabet (defaults to ``aoi_sequence.max() + 1``). This is what
+       Krejtz 2015 actually evaluates and what published GTE values are
+       comparable to.
+
+    2. **Spatial proxy (back-compat / VR scanning index) — auto-binned
+       2D grid.** Pass ``gaze_x`` and ``gaze_y`` with the bin-grid
+       parameters. The function discretises raw samples into a
+       ``horizontal_bins × vertical_bins`` grid and computes the same
+       Markov-chain entropy on that synthetic AOI alphabet. **Numbers
+       from this mode are not directly comparable to AOI-based GTE in
+       the literature** — the bin alphabet is much larger than typical
+       semantic-AOI alphabets (4-10 regions) which inflates max
+       entropy, and self-loops within a fixation deflate H_t. Treat
+       this as a spatial scanning-complexity proxy à la Shiferaw 2019.
+
+    For short trials, the empirical estimate is biased downward
+    (Miller-Madow / NSB-style finite-sample bias). Use long enough
+    sequences (≳ 5 × n_AOI² transitions) for stable values, or apply a
+    bias correction yourself.
+
+    References:
+        Krejtz, K., Duchowski, A., Krejtz, I., Kopacz, A., &
+        Chrząstowski-Wachtel, P. (2015). Gaze Transition Entropy. ACM
+        Trans. Applied Perception, 13(1), 4. https://doi.org/10.1145/2834121
+        Shiferaw, B., et al. (2019). A review of gaze entropy as a
+        measure of visual scanning efficiency. Neurosci. Biobehav. Rev.,
+        96, 353-366.
 
     Args:
-        gaze_x: X coordinates.
-        gaze_y: Y coordinates.
-        horizontal_bins: Number of X bins.
-        vertical_bins: Number of Y bins.
+        gaze_x: X coordinates of gaze samples (spatial-proxy mode).
+        gaze_y: Y coordinates of gaze samples (spatial-proxy mode).
+        horizontal_bins: Number of X bins for the spatial proxy.
+        vertical_bins: Number of Y bins for the spatial proxy.
+        aoi_sequence: Integer AOI labels per fixation, in time order
+                      (canonical mode). Mutually exclusive with the
+                      ``gaze_x``/``gaze_y`` arguments.
+        n_aois: Size of the AOI alphabet for the canonical mode.
 
     Returns:
         Transition entropy in bits.
     """
+    # Canonical mode: discrete AOI labels.
+    if aoi_sequence is not None:
+        seq = np.asarray(aoi_sequence)
+        seq = seq[~np.isnan(seq.astype(np.float64, copy=False))] if seq.dtype.kind == 'f' else seq
+        if len(seq) < 2:
+            return 0.0
+        seq = seq.astype(np.int64)
+        size = int(n_aois) if n_aois is not None else int(seq.max()) + 1
+        if size < 1:
+            return 0.0
+        return _transition_entropy_from_sequence(seq, size)
+
+    # Spatial-proxy mode (auto-binned 2D grid). Documented as a proxy,
+    # not the canonical Krejtz GTE.
+    if gaze_x is None or gaze_y is None:
+        raise ValueError(
+            "transition_entropy requires either `aoi_sequence` (canonical "
+            "mode) or both `gaze_x` and `gaze_y` (spatial-proxy mode)."
+        )
     gaze_x = np.asarray(gaze_x)
     gaze_y = np.asarray(gaze_y)
 
-    # Remove invalid samples
     valid_mask = ~(np.isnan(gaze_x) | np.isnan(gaze_y))
     gaze_x = gaze_x[valid_mask]
     gaze_y = gaze_y[valid_mask]
-
     if len(gaze_x) < 2:
         return 0.0
 
-    # Determine ranges
-    x_min, x_max = np.min(gaze_x), np.max(gaze_x)
-    y_min, y_max = np.min(gaze_y), np.max(gaze_y)
+    x_min, x_max = float(np.min(gaze_x)), float(np.max(gaze_x))
+    y_min, y_max = float(np.min(gaze_y)), float(np.max(gaze_y))
 
-    # Bin the data
     x_bins = np.clip(
         ((gaze_x - x_min) / (x_max - x_min + 1e-10) * horizontal_bins).astype(int),
         0, horizontal_bins - 1
@@ -475,37 +534,34 @@ def transition_entropy(gaze_x: np.ndarray,
         ((gaze_y - y_min) / (y_max - y_min + 1e-10) * vertical_bins).astype(int),
         0, vertical_bins - 1
     )
-
-    # Convert to single bin index
-    n_bins = horizontal_bins * vertical_bins
     bin_indices = x_bins * vertical_bins + y_bins
+    return _transition_entropy_from_sequence(
+        bin_indices.astype(np.int64),
+        horizontal_bins * vertical_bins,
+    )
 
-    # Create transition matrix
-    transition_matrix = np.zeros((n_bins, n_bins))
-    for i in range(len(bin_indices) - 1):
-        from_bin = bin_indices[i]
-        to_bin = bin_indices[i + 1]
-        transition_matrix[from_bin, to_bin] += 1
 
-    # Calculate transition entropy
-    # H(T) = -sum_i sum_j P(i,j) * log2(P(j|i))
-    row_sums = transition_matrix.sum(axis=1, keepdims=True)
-    row_sums[row_sums == 0] = 1  # Avoid division by zero
+def _transition_entropy_from_sequence(seq: np.ndarray, n_states: int) -> float:
+    """Conditional Markov-chain entropy for an integer state sequence.
 
-    # Conditional probabilities P(j|i)
-    conditional_probs = transition_matrix / row_sums
-
-    # Joint probabilities P(i,j)
-    total_transitions = transition_matrix.sum()
-    if total_transitions == 0:
+    H_t = − Σ_{i,j} P(i,j) log_2 P(j|i), summed over (from, to) pairs
+    that occur at least once. Returns bits.
+    """
+    if len(seq) < 2 or n_states < 1:
         return 0.0
-    joint_probs = transition_matrix / total_transitions
+    transition_matrix = np.zeros((n_states, n_states), dtype=np.float64)
+    np.add.at(transition_matrix, (seq[:-1], seq[1:]), 1.0)
 
-    # Calculate entropy
-    entropy = 0.0
-    for i in range(n_bins):
-        for j in range(n_bins):
-            if joint_probs[i, j] > 0 and conditional_probs[i, j] > 0:
-                entropy -= joint_probs[i, j] * np.log2(conditional_probs[i, j])
+    total = transition_matrix.sum()
+    if total == 0:
+        return 0.0
+    row_sums = transition_matrix.sum(axis=1, keepdims=True)
+    safe_row_sums = np.where(row_sums == 0, 1.0, row_sums)
+    cond = transition_matrix / safe_row_sums
+    joint = transition_matrix / total
 
-    return entropy
+    # H_t = − Σ_{i,j: cond>0} joint[i,j] log2(cond[i,j])
+    mask = (cond > 0) & (joint > 0)
+    contributions = np.zeros_like(joint)
+    contributions[mask] = -joint[mask] * np.log2(cond[mask])
+    return float(contributions.sum())

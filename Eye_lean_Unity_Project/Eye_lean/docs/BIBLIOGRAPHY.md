@@ -88,6 +88,8 @@ This paper provides the mathematical foundation for the "Paper Algorithm" vergen
 }
 ```
 
+Brown (1963) covers the textbook EMA recursion only — i.e. the final blend `y_t = α x_t + (1−α) y_{t−1}` in `VergenceSmoothingProcessor.ApplyWeightedEMA`. The preceding quality-and-time-weighted history average and the adaptive-α rescaling are Eye_lean implementation details with no paper basis.
+
 ---
 
 ## Information Theory

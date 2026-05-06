@@ -17,18 +17,10 @@ namespace EyeLean.Replay.Analysis
         #region K-Coefficient Thresholds
 
         /// <summary>
-        /// Threshold for focal attention classification (K > threshold).
-        /// Focal attention indicates detailed inspection with long fixations and small saccades.
-        /// Standard value from Krejtz et al. (2016).
+        /// Visualisation-only neutral band: |K| &lt; deadZone is reported as
+        /// Neutral. Krejtz 2016 classifies by sign, so the default is 0.
         /// </summary>
-        public const float K_COEFFICIENT_FOCAL_THRESHOLD = 0.5f;
-
-        /// <summary>
-        /// Threshold for ambient attention classification (K < -threshold).
-        /// Ambient attention indicates scanning behavior with short fixations and large saccades.
-        /// Standard value from Krejtz et al. (2016).
-        /// </summary>
-        public const float K_COEFFICIENT_AMBIENT_THRESHOLD = 0.5f;
+        public const float K_COEFFICIENT_DEAD_ZONE = 0.0f;
 
         /// <summary>
         /// Window size for K-coefficient calculation (number of fixation-saccade pairs).

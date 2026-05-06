@@ -107,10 +107,15 @@ namespace EyeTracking.Calibration
             result.yawOffsetDeg = Median(residuals, r => r.dyaw);
             result.pitchOffsetDeg = Median(residuals, r => r.dpitch);
 
-            // Post-fit error: rotate each measured direction by the fitted
-            // offset and recompute angular error to the intended direction.
-            // Done in head-local space to match the pipeline's correction.
-            Quaternion correction = Quaternion.Euler(result.pitchOffsetDeg, result.yawOffsetDeg, 0f);
+            // Post-fit error: apply the fitted offset to each measured
+            // direction and recompute angular error to the intended one.
+            // The live runtime correction in
+            // ActiveProfile.ApplyCombinedCorrection (and its Python port
+            // in eyelean_analysis.calibration.posthoc_correction) is
+            // additive in the head-local (yaw, pitch) decomposition, so
+            // we use the same decomposition here to keep pre-fit and
+            // post-fit error metrics directly comparable to the
+            // correction the runtime applies.
             var postErrors = new List<float>(samples.Count);
             foreach (var s in samples)
             {
@@ -122,7 +127,26 @@ namespace EyeTracking.Calibration
                 intendedWorld.Normalize();
 
                 Vector3 measuredLocal = headTransform.InverseTransformDirection(s.actualGazeDirection);
-                Vector3 correctedLocal = correction * measuredLocal;
+                if (measuredLocal.sqrMagnitude < 1e-6f) continue;
+
+                float measuredYaw   = Mathf.Atan2(measuredLocal.x, measuredLocal.z) * Mathf.Rad2Deg;
+                float measuredPitch = -Mathf.Asin(Mathf.Clamp(measuredLocal.y, -1f, 1f)) * Mathf.Rad2Deg;
+                float correctedYaw   = measuredYaw   + result.yawOffsetDeg;
+                float correctedPitch = measuredPitch + result.pitchOffsetDeg;
+
+                // Recompose to a unit local vector using the same
+                // convention as the runtime (yaw=atan2(x,z), pitch=−asin(y)),
+                // then take to world space for the angular-error compare.
+                float yawRad   = correctedYaw   * Mathf.Deg2Rad;
+                float pitchRad = -correctedPitch * Mathf.Deg2Rad;
+                float cosP = Mathf.Cos(pitchRad);
+                Vector3 correctedLocal = new Vector3(
+                    Mathf.Sin(yawRad) * cosP,
+                    Mathf.Sin(pitchRad),
+                    Mathf.Cos(yawRad) * cosP
+                );
+                float clNorm = correctedLocal.magnitude;
+                if (clNorm > 1e-9f) correctedLocal /= clNorm;
                 Vector3 correctedWorld = headTransform.TransformDirection(correctedLocal);
 
                 float dot = Vector3.Dot(correctedWorld, intendedWorld);

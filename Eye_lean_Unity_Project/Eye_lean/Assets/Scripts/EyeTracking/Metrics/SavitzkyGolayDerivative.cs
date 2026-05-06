@@ -87,6 +87,15 @@ namespace EyeTracking.Metrics
         /// where fc = f_target / f_Nyquist. Returns the half-width M that
         /// best matches <paramref name="targetCutoffHz"/> at the given
         /// sample rate. Output is clamped to a sensible minimum.
+        ///
+        /// When the derived M falls below Schäfer's published validity
+        /// range (M ≥ 25), the formula's actual cutoff can be 10–30%
+        /// off the requested band. A debug log is emitted in that case
+        /// so the caller can see why a 60-Hz HMD's RIPA2 LF window
+        /// (M ≈ 13) is on the edge of the formula's regime. The
+        /// derived M is returned as-is — clamping to 25 here would
+        /// silently widen the SG window beyond what the live sample
+        /// rate can support and stale the RIPA2 buffer further.
         /// </summary>
         public static int DeriveHalfWidth(float sampleRateHz, float targetCutoffHz, int polyOrder)
         {
@@ -101,6 +110,16 @@ namespace EyeTracking.Metrics
             int Mi = (int)Math.Round(M);
             int minM = polyOrder + 1; // need at least polyOrder+1 distinct points
             if (Mi < minM) Mi = minM;
+            const int SchaeferValidityFloor = 25;
+            if (Mi < SchaeferValidityFloor)
+            {
+                UnityEngine.Debug.LogWarning(
+                    $"[SavitzkyGolayDerivative] Schäfer cutoff approximation used at M={Mi} (< {SchaeferValidityFloor}); " +
+                    $"requested f_c={targetCutoffHz} Hz at fs={sampleRateHz} Hz with N={polyOrder}. " +
+                    $"Real -3 dB point may be 10-30% off the requested cutoff. Returning M={Mi} unclamped — " +
+                    $"override via the explicit half-width constructor if you need a different SG kernel."
+                );
+            }
             return Mi;
         }
 

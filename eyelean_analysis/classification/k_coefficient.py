@@ -1,10 +1,19 @@
 """
 K-coefficient for ambient/focal attention classification.
 
-The K-coefficient characterizes eye movement patterns as either:
-- Focal: Detailed inspection with long fixations and small saccades (K > 0)
-- Ambient: Scanning/overview with short fixations and large saccades (K < 0)
-- Neutral: Balanced attention (K ≈ 0)
+Per Krejtz et al. (2016, PLoS ONE Eq. 1), the K-coefficient is a
+**difference of z-scores** computed per fixation/saccade pair:
+
+    K_i = z(a_i) − z(d_i)
+        = (a_i − μ_a) / σ_a  −  (d_i − μ_d) / σ_d
+    K   = mean_i(K_i)
+
+where d_i is the duration of fixation i and a_i is the amplitude of the
+saccade following fixation i. Sign convention follows the paper:
+**K > 0 ⇒ focal** (long fixations following short saccades),
+**K < 0 ⇒ ambient** (short fixations following long saccades). Magnitude
+is in standard-deviation units; classification is sign-based, not
+threshold-based.
 
 Reference:
     Krejtz, K., Duchowski, A. T., Niber, T., Krejtz, I., & Kopacz, A. (2016).
@@ -13,8 +22,8 @@ Reference:
     https://doi.org/10.1371/journal.pone.0163087
 
     Krejtz, K., Duchowski, A., Krejtz, I., Kopacz, A., & Chrząstowski-Wachtel, P. (2016).
-    Gaze transition entropy. Proceedings of the 2016 symposium on Eye tracking
-    research & applications (ETRA '16), 191-194.
+    Discerning ambient/focal attention with coefficient K. ACM Trans.
+    Applied Perception, 13(3), 11:1-11:20. https://doi.org/10.1145/2896452
 """
 
 import numpy as np
@@ -48,21 +57,24 @@ class KCoefficientResult:
 
 class KCoefficientCalculator:
     """
-    Calculator for the K-coefficient attention metric.
+    Calculator for the K-coefficient attention metric (Krejtz et al. 2016).
 
-    The K-coefficient is computed from the relationship between fixation
-    durations and saccade amplitudes:
+    Per Eq. 1 of Krejtz, Duchowski, Niber, Krejtz, & Kopacz (2016, PLoS ONE):
 
-        K = ln(d_i / d̄) × ln(a_i / ā)
+        K_i = (a_i − μ_a) / σ_a  −  (d_i − μ_d) / σ_d
+        K   = mean_i(K_i)
 
-    Where:
-        d_i = individual fixation duration
-        d̄ = mean fixation duration
-        a_i = individual saccade amplitude
-        ā = mean saccade amplitude
+    where the i-th pair couples fixation i (duration d_i) with the
+    saccade that immediately follows it (amplitude a_i). K is in
+    standard-deviation units; classification is **sign-based** —
 
-    Positive K indicates focal attention (long fixations after small saccades),
-    negative K indicates ambient attention (short fixations after large saccades).
+      - K > 0 ⇒ focal   (long fixations after short saccades)
+      - K < 0 ⇒ ambient (short fixations after long saccades)
+
+    No fixed magnitude threshold (e.g. 0.5) is canonical; the optional
+    `dead_zone` argument lets callers report values within ±dead_zone of
+    zero as `Neutral` for visualisation purposes only — it is not part
+    of Krejtz's classification.
 
     Example:
         >>> calculator = KCoefficientCalculator()
@@ -71,8 +83,7 @@ class KCoefficientCalculator:
     """
 
     def __init__(self,
-                 focal_threshold: float = 0.5,
-                 ambient_threshold: float = 0.5,
+                 dead_zone: float = 0.0,
                  velocity_threshold: float = 50.0,
                  min_fixation_duration: float = 0.1,
                  window_size: int = 30):
@@ -80,14 +91,14 @@ class KCoefficientCalculator:
         Initialize the K-coefficient calculator.
 
         Args:
-            focal_threshold: K value above which attention is classified as focal.
-            ambient_threshold: K value below which attention is classified as ambient.
+            dead_zone: Visualization-only neutral band. Values with
+                |K| < dead_zone are reported as Neutral. Krejtz's paper
+                uses sign-only classification (dead_zone = 0).
             velocity_threshold: Velocity threshold for fixation/saccade detection.
             min_fixation_duration: Minimum fixation duration in seconds.
             window_size: Number of events to use for calculation.
         """
-        self.focal_threshold = focal_threshold
-        self.ambient_threshold = ambient_threshold
+        self.dead_zone = float(dead_zone)
         self.velocity_threshold = velocity_threshold
         self.min_fixation_duration = min_fixation_duration
         self.window_size = window_size
@@ -100,18 +111,57 @@ class KCoefficientCalculator:
 
     def calculate(self,
                   fixations: List[Fixation],
-                  saccades: List[Saccade]) -> KCoefficientResult:
+                  saccades: List[Saccade],
+                  pooled_stats: Optional[Tuple[float, float, float, float]] = None
+                  ) -> KCoefficientResult:
         """
-        Calculate K-coefficient from fixation and saccade lists.
+        Calculate K-coefficient from fixation and saccade lists per
+        Krejtz et al. (2016, PLoS ONE) Eq. 1.
+
+        Pairing convention: the i-th fixation is paired with the
+        saccade that immediately follows it. With n fixations and m
+        saccades the number of valid pairs is min(n, m) — any trailing
+        unpaired fixation or leading unpaired saccade is dropped.
+
+        **IMPORTANT — pooled vs local statistics.** Krejtz's K-coefficient
+        is a difference of z-scores. If μ, σ for the z-scores are
+        computed over the SAME pairs that K is averaged over, the result
+        is mathematically identically zero (mean of z-scores is zero by
+        construction). This is why the canonical paper reports K
+        per-stimulus / per-condition / per-window using
+        recording-global μ, σ across ALL fixations and saccades.
+
+        Two usage modes:
+
+        - **Local stats (default):** call `calculate(fixations, saccades)`
+          on a subset; μ, σ are taken from that subset, and K returns
+          identically zero. This is only useful if you intend to compare
+          something else about the result (e.g., the per-pair K_i array
+          via `pooled_stats=(...)` below).
+        - **Pooled stats (recommended):** pass session-global stats via
+          ``pooled_stats=(mean_d, std_d, mean_a, std_a)``. K is then
+          computed with z-scores against the pooled reference and the
+          result is non-zero whenever the passed subset is unbalanced
+          relative to the pooled distribution. Use
+          :meth:`calculate_per_window` for the standard time-windowed
+          K(t) reporting in Krejtz 2017.
 
         Args:
-            fixations: List of detected fixations.
-            saccades: List of detected saccades.
+            fixations: List of detected fixations, in time order.
+            saccades:  List of detected saccades, in time order. The
+                       i-th saccade is assumed to follow fixation i.
+            pooled_stats: Optional ``(mean_d, std_d, mean_a, std_a)``
+                       tuple from a broader pooling reference. When
+                       provided, z-scores use these instead of the
+                       within-subset stats.
 
         Returns:
             KCoefficientResult with K-coefficient and classification.
         """
-        if len(fixations) < 2 or len(saccades) < 1:
+        # Need >=2 pairs so std (with ddof=1) is defined and the metric
+        # has any statistical meaning.
+        n_pairs = min(len(fixations), len(saccades))
+        if n_pairs < 2:
             return KCoefficientResult(
                 k_coefficient=0.0,
                 attention_type=AttentionType.UNKNOWN,
@@ -121,42 +171,39 @@ class KCoefficientCalculator:
                 n_saccades=len(saccades),
             )
 
-        # Get durations and amplitudes
-        durations = np.array([f.duration for f in fixations])
-        amplitudes = np.array([s.amplitude for s in saccades])
+        durations  = np.asarray([f.duration  for f in fixations[:n_pairs]], dtype=np.float64)
+        amplitudes = np.asarray([s.amplitude for s in saccades[:n_pairs]],  dtype=np.float64)
 
-        # Calculate mean values
-        mean_duration = np.mean(durations)
-        mean_amplitude = np.mean(amplitudes)
+        if pooled_stats is not None:
+            mean_duration, std_duration, mean_amplitude, std_amplitude = (
+                float(x) for x in pooled_stats
+            )
+        else:
+            mean_duration  = float(durations.mean())
+            mean_amplitude = float(amplitudes.mean())
+            std_duration   = float(durations.std(ddof=1))
+            std_amplitude  = float(amplitudes.std(ddof=1))
 
-        # Avoid division by zero
-        if mean_duration <= 0 or mean_amplitude <= 0:
+        # If either spread is degenerate (constant duration or constant
+        # amplitude across all pairs) the z-score is undefined. Krejtz
+        # says nothing about this corner — return Unknown rather than
+        # silently producing inf/nan or a misleading zero.
+        if std_duration <= 0.0 or std_amplitude <= 0.0:
             return KCoefficientResult(
                 k_coefficient=0.0,
-                attention_type=AttentionType.NEUTRAL,
+                attention_type=AttentionType.UNKNOWN,
                 mean_fixation_duration=mean_duration,
                 mean_saccade_amplitude=mean_amplitude,
                 n_fixations=len(fixations),
                 n_saccades=len(saccades),
             )
 
-        # Calculate K-coefficient (using most recent pair)
-        # Standard approach: pair each fixation with following saccade
-        n_pairs = min(len(durations), len(amplitudes))
-        k_values = []
+        # Eq. 1: K_i = z(a_i) − z(d_i); K = mean_i(K_i).
+        z_d = (durations  - mean_duration)  / std_duration
+        z_a = (amplitudes - mean_amplitude) / std_amplitude
+        k_values = z_a - z_d
+        k_coefficient = float(np.nanmean(k_values))
 
-        for i in range(n_pairs):
-            if durations[i] > 0 and amplitudes[i] > 0:
-                ln_d = np.log(durations[i] / mean_duration)
-                ln_a = np.log(amplitudes[i] / mean_amplitude)
-                k_values.append(ln_d * ln_a)
-
-        if len(k_values) == 0:
-            k_coefficient = 0.0
-        else:
-            k_coefficient = np.mean(k_values)
-
-        # Classify attention type
         attention_type = self._classify_attention(k_coefficient)
 
         return KCoefficientResult(
@@ -167,6 +214,65 @@ class KCoefficientCalculator:
             n_fixations=len(fixations),
             n_saccades=len(saccades),
         )
+
+    def calculate_per_window(self,
+                             fixations: List[Fixation],
+                             saccades: List[Saccade],
+                             window_seconds: float = 5.0,
+                             step_seconds: float = 1.0,
+                             ) -> List[KCoefficientResult]:
+        """Sliding-window K(t) using session-global pooled μ, σ.
+
+        This is the canonical Krejtz usage pattern: pool fixation/saccade
+        statistics over the entire passed session, then for each
+        ``window_seconds``-long window step the time index by
+        ``step_seconds`` and compute the mean of (z_a − z_d) over the
+        pairs whose fixation start-time falls in that window. Sliding
+        windows yield non-zero K values whose sign indicates focal
+        (positive) or ambient (negative) attention relative to the
+        session baseline.
+
+        Args:
+            fixations: All session fixations, time-ordered.
+            saccades:  All session saccades, time-ordered. Pair i =
+                       (fixations[i], saccades[i]).
+            window_seconds: K averaging window in seconds (Krejtz 2017
+                       uses ~5 s for the dynamic K(t) plot).
+            step_seconds:  Step between adjacent windows.
+
+        Returns:
+            List of KCoefficientResult, one per window, with
+            ``window_start`` / ``window_end`` populated.
+        """
+        n_pairs = min(len(fixations), len(saccades))
+        if n_pairs < 2:
+            return []
+
+        durations  = np.asarray([f.duration  for f in fixations[:n_pairs]], dtype=np.float64)
+        amplitudes = np.asarray([s.amplitude for s in saccades[:n_pairs]],  dtype=np.float64)
+        starts     = np.asarray([f.start_time for f in fixations[:n_pairs]], dtype=np.float64)
+
+        mean_d = float(durations.mean());  std_d = float(durations.std(ddof=1))
+        mean_a = float(amplitudes.mean()); std_a = float(amplitudes.std(ddof=1))
+        if std_d <= 0.0 or std_a <= 0.0:
+            return []
+        pooled = (mean_d, std_d, mean_a, std_a)
+
+        t0, t1 = float(starts.min()), float(starts.max())
+        results: List[KCoefficientResult] = []
+        w_start = t0
+        while w_start + window_seconds <= t1 + 1e-9:
+            w_end = w_start + window_seconds
+            mask = (starts >= w_start) & (starts < w_end)
+            if int(mask.sum()) >= 2:
+                fix_w = [fixations[i] for i in range(n_pairs) if mask[i]]
+                sac_w = [saccades[i]  for i in range(n_pairs) if mask[i]]
+                r = self.calculate(fix_w, sac_w, pooled_stats=pooled)
+                r.window_start = w_start
+                r.window_end   = w_end
+                results.append(r)
+            w_start += step_seconds
+        return results
 
     def calculate_from_gaze(self,
                             gaze_x: np.ndarray,
@@ -243,26 +349,31 @@ class KCoefficientCalculator:
 
         return results
 
-    def calculate_velocity_based(self,
-                                 velocity: np.ndarray,
-                                 timestamps: Optional[np.ndarray] = None) -> KCoefficientResult:
+    def velocity_based_attention_proxy(self,
+                                       velocity: np.ndarray,
+                                       timestamps: Optional[np.ndarray] = None) -> KCoefficientResult:
         """
-        Calculate K-coefficient directly from velocity using simplified approach.
+        Velocity-based attention PROXY — NOT the Krejtz K-coefficient.
 
-        This method maps velocity to K-coefficient without explicit fixation/saccade
-        detection, useful for real-time visualization.
+        Maps mean angular velocity to a focal/ambient indicator using
+        hard-coded velocity bands. Useful for real-time visualization
+        when fixation/saccade events have not yet been segmented, but
+        do not report this as "K-coefficient" — Krejtz K is defined
+        only over paired fixation/saccade events.
 
-        Velocity mapping:
-            - < 15 deg/s: Strong to weak focal (K = 1.5 to 0.5)
-            - 15-40 deg/s: Weak focal to weak ambient (K = 0.5 to -0.5)
-            - > 40 deg/s: Weak to strong ambient (K = -0.5 to -1.5)
+        Velocity mapping (proxy, not from any paper):
+            - < 15 deg/s: Strong to weak focal  (proxy 1.5 to 0.5)
+            - 15-40 deg/s: Weak focal to weak ambient (proxy 0.5 to -0.5)
+            - > 40 deg/s: Weak to strong ambient (proxy -0.5 to -1.5)
 
         Args:
             velocity: Array of velocity values (degrees/second).
             timestamps: Optional timestamps for samples.
 
         Returns:
-            KCoefficientResult with estimated K-coefficient.
+            KCoefficientResult with the proxy value placed in
+            `k_coefficient`. Treat as a categorical attention indicator,
+            not a quantitative K.
         """
         velocity = np.asarray(velocity)
         valid_velocity = velocity[~np.isnan(velocity)]
@@ -308,63 +419,68 @@ class KCoefficientCalculator:
         )
 
     def _classify_attention(self, k: float) -> AttentionType:
-        """Classify attention type based on K-coefficient value."""
+        """Classify attention type based on K-coefficient sign.
+
+        Krejtz 2016 classifies by sign; the optional `dead_zone` widens
+        the neutral band purely for visualization. Default dead_zone=0
+        ⇒ pure sign classification.
+        """
         if np.isnan(k):
             return AttentionType.UNKNOWN
-        elif k > self.focal_threshold:
+        if k > self.dead_zone:
             return AttentionType.FOCAL
-        elif k < -self.ambient_threshold:
+        if k < -self.dead_zone:
             return AttentionType.AMBIENT
-        else:
-            return AttentionType.NEUTRAL
+        return AttentionType.NEUTRAL
 
 
 def calculate_k_coefficient(fixations: List[Fixation],
                             saccades: List[Saccade],
-                            focal_threshold: float = 0.5,
-                            ambient_threshold: float = 0.5) -> KCoefficientResult:
+                            dead_zone: float = 0.0) -> KCoefficientResult:
     """
-    Convenience function to calculate K-coefficient.
+    Convenience function to calculate K-coefficient per Krejtz 2016.
 
     Args:
-        fixations: List of detected fixations.
-        saccades: List of detected saccades.
-        focal_threshold: Threshold for focal classification.
-        ambient_threshold: Threshold for ambient classification.
+        fixations: List of detected fixations, in time order.
+        saccades:  List of detected saccades, in time order. Pairing
+                   convention: saccade i follows fixation i.
+        dead_zone: Visualization-only neutral band (|K| < dead_zone
+                   ⇒ Neutral). Krejtz uses sign-based classification
+                   (dead_zone = 0).
 
     Returns:
         KCoefficientResult with K-coefficient and classification.
     """
-    calculator = KCoefficientCalculator(
-        focal_threshold=focal_threshold,
-        ambient_threshold=ambient_threshold,
-    )
+    calculator = KCoefficientCalculator(dead_zone=dead_zone)
     return calculator.calculate(fixations, saccades)
 
 
 def classify_attention(k_coefficient: Union[float, KCoefficientResult],
-                       focal_threshold: float = 0.5,
-                       ambient_threshold: float = 0.5) -> AttentionType:
+                       dead_zone: float = 0.0) -> AttentionType:
     """
     Classify attention type from a K-coefficient value or result object.
 
+    Per Krejtz 2016 the classification is **sign-based**: K > 0 ⇒ focal,
+    K < 0 ⇒ ambient. The `dead_zone` argument widens the neutral band
+    purely for visualization and is not part of Krejtz's definition.
+
     Args:
-        k_coefficient: Either a float K-coefficient value, or a KCoefficientResult
-                      object (from calculate_k_coefficient()). If a KCoefficientResult
-                      is passed, the k_coefficient field will be extracted automatically.
-        focal_threshold: Threshold for focal classification.
-        ambient_threshold: Threshold for ambient classification.
+        k_coefficient: Either a float K-coefficient value, or a
+                      KCoefficientResult object (from
+                      calculate_k_coefficient()). If a KCoefficientResult
+                      is passed, the `k_coefficient` field will be
+                      extracted automatically.
+        dead_zone: Half-width of the neutral band around 0; default 0
+                   (pure sign classification).
 
     Returns:
         AttentionType enum value.
 
     Example:
         >>> result = calculate_k_coefficient(fixations, saccades)
-        >>> attention = classify_attention(result)  # Pass result object directly
-        >>> # OR
-        >>> attention = classify_attention(result.k_coefficient)  # Pass float
+        >>> attention = classify_attention(result)
+        >>> attention = classify_attention(result.k_coefficient)
     """
-    # Handle KCoefficientResult input
     if isinstance(k_coefficient, KCoefficientResult):
         k_value = k_coefficient.k_coefficient
     else:
@@ -372,12 +488,11 @@ def classify_attention(k_coefficient: Union[float, KCoefficientResult],
 
     if np.isnan(k_value):
         return AttentionType.UNKNOWN
-    elif k_value > focal_threshold:
+    if k_value > dead_zone:
         return AttentionType.FOCAL
-    elif k_value < -ambient_threshold:
+    if k_value < -dead_zone:
         return AttentionType.AMBIENT
-    else:
-        return AttentionType.NEUTRAL
+    return AttentionType.NEUTRAL
 
 
 def k_coefficient_timeseries(gaze_x: np.ndarray,

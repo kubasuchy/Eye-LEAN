@@ -132,10 +132,17 @@ t_1 = (p_13 · R_2 + t_2 * r2·r2) / r2·r4
 
 If `t_1 < 0` or `t_2 < 0`, return invalid (intersection is behind eyes).
 
-Find intersection points:
+**Note on Duchowski et al.'s indexing convention.** The paper uses
+unconventional subscripts: `t_2` is the parameter on the **left** ray
+`P_1 + t · R_2`, and `t_1` is the parameter on the **right** ray
+`P_3 + t · R_4`. The subscript matches the equation index (the first
+dot-product equation `(p_13 + ...)·R_2 = 0` solves for `t_2`; the
+second `(p_13 + ...)·R_4 = 0` solves for `t_1`), not the ray index.
+
+Find intersection points (per the paper's convention):
 ```
-I_L = P_1 + t_1 * R_2
-I_R = P_3 + t_2 * R_4
+I_L = P_1 + t_2 * R_2     // left ray uses t_2
+I_R = P_3 + t_1 * R_4     // right ray uses t_1
 ```
 
 **Vergence point**:
@@ -243,8 +250,10 @@ All smoothing algorithms are implemented in `Assets/Scripts/EyeTracking/Vergence
 
 **Implementation**: `Assets/Scripts/EyeTracking/Vergence/VergenceSmoothingProcessor.cs:169-206` (`ApplyWeightedEMA`)
 
-**Reference**:
+**Reference (partial)**:
 - Roberts, S.W. (1959). "Control Chart Tests Based on Geometric Moving Averages". *Technometrics*, 1(3), 239-250. [DOI: 10.1080/00401706.1959.10489860](https://doi.org/10.1080/00401706.1959.10489860)
+
+> Citation scope: Roberts (1959) — and equivalently Brown (1963) — introduce the textbook EMA recursion `y_t = α · x_t + (1−α) · y_{t−1}`, which is the *final blend step* of WeightedEMA only. The preceding **quality-and-time-weighted history average** and the **adaptive-α rescaling** (distance- and quality-conditioned, see `GetAdaptiveSmoothingFactor`) are Eye_lean implementation details with no paper basis — they are heuristics tuned for VIVE Focus Vision vergence noise characteristics. Treat WeightedEMA as a custom filter, not as Roberts EMA.
 
 A quality-weighted exponential moving average that adapts to tracking conditions.
 

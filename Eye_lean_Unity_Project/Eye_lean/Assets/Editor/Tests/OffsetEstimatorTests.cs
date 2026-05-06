@@ -292,5 +292,38 @@ namespace EyeLean.Tests.EditMode
             Assert.Less(result.postFitMedianErrorDeg, 0.5f, "fitted offset should bring residual near zero");
             Assert.Less(result.postFitMedianErrorDeg, result.preFitMedianErrorDeg);
         }
+
+        [Test]
+        public void PostFitError_UsesAdditiveYawPitch_MatchesRuntimeCorrection()
+        {
+            // The runtime gaze correction
+            // (ActiveProfile.ApplyCombinedCorrection / Python's
+            // posthoc_correction.apply_combined_correction) is additive in
+            // the head-local (yaw, pitch) decomposition. The post-fit
+            // error metric uses the same decomposition so it reflects the
+            // exact correction the runtime applies. On synthetic data
+            // constructed with the same yaw/pitch convention, the fitted
+            // offset should perfectly cancel the bias and the post-fit
+            // error should be at most floating-point noise.
+            const float yawBias = -7f;
+            const float pitchBias = 5f;
+            var samples = new List<GroundTruthSample>();
+            float[] iyaws   = { -8f, -4f, 0f, 4f, 8f };
+            float[] ipitches = { -6f, -3f, 0f, 3f, 6f };
+            foreach (var iy in iyaws)
+            foreach (var ip in ipitches)
+            {
+                Vector3 intended = DirFromYawPitch(iy, ip);
+                Vector3 measured = DirFromYawPitch(iy + yawBias, ip + pitchBias);
+                samples.Add(MakeFixationSample(measured, intended));
+            }
+
+            var result = OffsetEstimator.FitCombinedOffset(samples, _head);
+            Assert.IsTrue(result.converged);
+            Assert.AreEqual(-yawBias,   result.yawOffsetDeg,   1e-3f);
+            Assert.AreEqual(-pitchBias, result.pitchOffsetDeg, 1e-3f);
+            Assert.Less(result.postFitMedianErrorDeg, 1e-3f,
+                "Additive yaw/pitch post-fit math should give exact recovery on synthetic data.");
+        }
     }
 }

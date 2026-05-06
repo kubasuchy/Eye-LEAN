@@ -30,16 +30,22 @@ class SavitzkyGolayFilter:
         >>> velocity = filter.derivative(position_signal, sample_rate=120)
     """
 
-    # Pre-computed smoothing coefficients for common configurations
+    # Pre-computed smoothing coefficients for common configurations.
+    # Cross-checked against `scipy.signal.savgol_coeffs(window, poly, deriv=0)`
+    # — see test_filters.py::test_smoothing_lookup_matches_scipy. The
+    # (window, N) and (window, N-1) pairs are equal whenever N is odd
+    # (general SG identity for symmetric smoothing kernels), and the
+    # (W, W-1) "exact polynomial" entries reduce to the identity kernel
+    # because a degree W-1 polynomial through W points is unique.
     SMOOTHING_COEFFICIENTS = {
         (5, 2): np.array([-3, 12, 17, 12, -3]) / 35,
-        (5, 3): np.array([-3, 12, 17, 12, -3]) / 35,  # Same as quadratic for smoothing
-        (5, 4): np.array([-3, 12, 17, 12, -3]) / 35,
+        (5, 3): np.array([-3, 12, 17, 12, -3]) / 35,            # cubic == quadratic for n=5
+        (5, 4): np.array([0, 0, 1, 0, 0], dtype=np.float64),    # quartic through 5 points is exact (identity)
         (7, 2): np.array([-2, 3, 6, 7, 6, 3, -2]) / 21,
-        (7, 3): np.array([-2, 3, 6, 7, 6, 3, -2]) / 21,
+        (7, 3): np.array([-2, 3, 6, 7, 6, 3, -2]) / 21,         # cubic == quadratic for n=7
         (7, 4): np.array([5, -30, 75, 131, 75, -30, 5]) / 231,
         (9, 2): np.array([-21, 14, 39, 54, 59, 54, 39, 14, -21]) / 231,
-        (9, 3): np.array([-21, 14, 39, 54, 59, 54, 39, 14, -21]) / 231,
+        (9, 3): np.array([-21, 14, 39, 54, 59, 54, 39, 14, -21]) / 231,  # cubic == quadratic for n=9
         (9, 4): np.array([15, -55, 30, 135, 179, 135, 30, -55, 15]) / 429,
         (11, 2): np.array([-36, 9, 44, 69, 84, 89, 84, 69, 44, 9, -36]) / 429,
         (11, 4): np.array([18, -45, -10, 60, 120, 143, 120, 60, -10, -45, 18]) / 429,
@@ -420,8 +426,21 @@ def compute_angular_velocity(dir_x: np.ndarray,
     """
     Compute angular velocity from gaze direction vectors.
 
-    Uses the cross product of consecutive direction vectors to estimate
-    angular velocity in degrees per second.
+    Strategy parallels the 2D path: smooth each direction component
+    with a Savitzky-Golay polynomial fit, compute per-sample angular
+    displacement using the numerically stable atan2 form (avoids the
+    near-1 ill-conditioning of `arccos(dot)`), then smooth the
+    resulting per-sample angular speed with the same SG kernel so the
+    3D and 2D paths produce comparable velocities on the same data.
+
+    Why atan2 instead of arccos(dot): for small inter-sample angles —
+    the common case at HMD sample rates — `arccos(np.clip(dot, -1, 1))`
+    loses precision (numerical noise above 1.0 gets clipped to exactly
+    1.0, mapping to angle 0). The identity used here is
+
+        angle = 2 · atan2(||u − v|| / 2, ||u + v|| / 2)
+
+    which is well-conditioned across the full [0, π] range.
 
     Args:
         dir_x: X component of gaze direction.
@@ -436,37 +455,40 @@ def compute_angular_velocity(dir_x: np.ndarray,
     """
     filt = SavitzkyGolayFilter(window_size, poly_order)
 
-    # Smooth the direction vectors first
-    dir_x_smooth = filt.smooth(dir_x)
-    dir_y_smooth = filt.smooth(dir_y)
-    dir_z_smooth = filt.smooth(dir_z)
+    dx = filt.smooth(np.asarray(dir_x, dtype=np.float64))
+    dy = filt.smooth(np.asarray(dir_y, dtype=np.float64))
+    dz = filt.smooth(np.asarray(dir_z, dtype=np.float64))
 
-    # Compute angular displacement between consecutive samples
-    # Using dot product to find angle between vectors
-    n = len(dir_x)
-    angular_velocity = np.zeros(n)
+    norms = np.sqrt(dx * dx + dy * dy + dz * dz)
+    norms = np.where(norms > 0, norms, np.nan)
+    ux = dx / norms
+    uy = dy / norms
+    uz = dz / norms
 
-    for i in range(1, n):
-        v1 = np.array([dir_x_smooth[i-1], dir_y_smooth[i-1], dir_z_smooth[i-1]])
-        v2 = np.array([dir_x_smooth[i], dir_y_smooth[i], dir_z_smooth[i]])
+    n = len(ux)
+    if n < 2:
+        return np.zeros(n)
 
-        # Normalize vectors
-        v1_norm = np.linalg.norm(v1)
-        v2_norm = np.linalg.norm(v2)
+    diff_x = ux[1:] - ux[:-1]
+    diff_y = uy[1:] - uy[:-1]
+    diff_z = uz[1:] - uz[:-1]
+    sum_x  = ux[1:] + ux[:-1]
+    sum_y  = uy[1:] + uy[:-1]
+    sum_z  = uz[1:] + uz[:-1]
 
-        if v1_norm > 0 and v2_norm > 0:
-            v1 = v1 / v1_norm
-            v2 = v2 / v2_norm
+    diff_norm = np.sqrt(diff_x ** 2 + diff_y ** 2 + diff_z ** 2)
+    sum_norm  = np.sqrt(sum_x  ** 2 + sum_y  ** 2 + sum_z  ** 2)
+    angle_rad = 2.0 * np.arctan2(diff_norm, sum_norm)
+    angle_deg = np.degrees(angle_rad)
 
-            # Compute angle using dot product
-            dot = np.clip(np.dot(v1, v2), -1.0, 1.0)
-            angle_rad = np.arccos(dot)
-            angle_deg = np.degrees(angle_rad)
+    angular_velocity = np.empty(n, dtype=np.float64)
+    angular_velocity[1:] = angle_deg * sample_rate
+    angular_velocity[0]  = angular_velocity[1]
 
-            # Convert to velocity (degrees per second)
-            angular_velocity[i] = angle_deg * sample_rate
-
-    # Copy first value
-    angular_velocity[0] = angular_velocity[1] if n > 1 else 0
-
-    return angular_velocity
+    # Smooth the per-sample velocity with the same SG kernel as the 2D
+    # path's `compute_gaze_velocity` so 3D and 2D classifications stay
+    # consistent on the same recording.
+    if np.any(np.isnan(angular_velocity)):
+        # smooth() preserves NaN positions via interpolation + restore.
+        return filt.smooth(angular_velocity)
+    return filt.smooth(angular_velocity)

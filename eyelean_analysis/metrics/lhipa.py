@@ -1,17 +1,30 @@
 """
 Low/High Index of Pupillary Activity (LHIPA) for cognitive load measurement.
 
-The LHIPA uses wavelet decomposition to analyze pupil oscillations as an
-indicator of cognitive load, based on the relationship between pupil
-dilation and mental workload.
+LHIPA decomposes the pupil-diameter signal into low and high frequency
+detail-coefficient bands, forms the per-sample LF/HF ratio, and counts
+the modulus maxima of that ratio that survive Donoho's universal
+threshold — normalised by signal duration.
 
-Reference:
+    cD_H = DWT detail at level j_HF = 1
+    cD_L = DWT detail at level j_LF = floor(maxlevel / 2)
+    cD_LH[i] = cD_L[i] / cD_H[(2^j_LF / 2^j_HF) · i]
+    λ        = std(modmax(cD_LH)) · sqrt(2 · log2(N))         (Donoho)
+    LHIPA    = count(|modmax(cD_LH)| > λ) / duration_seconds
+
+LHIPA decreases with rising cognitive load (Duchowski 2020 §4).
+
+Reference (cite this when reporting results):
+    Duchowski, A. T., Krejtz, K., Wnuk, J., Sankarasubramanian, K.,
+    Andersson, R., & Krejtz, I. (2020). The Low/High Index of Pupillary
+    Activity. Proceedings of the 2020 CHI Conference on Human Factors
+    in Computing Systems (CHI '20), Paper 282.
+    https://doi.org/10.1145/3313831.3376394
+
+Background (the original IPA paper, single-level):
     Duchowski, A. T., Krejtz, K., Krejtz, I., Biele, C., Niber, T.,
     Kiefer, P., ... & Giannopoulos, I. (2018). The Index of Pupillary
-    Activity: Measuring Cognitive Load vis-à-vis Task Difficulty with
-    Pupil Oscillation. Proceedings of the 2018 CHI Conference on Human
-    Factors in Computing Systems (CHI '18), Paper 282.
-    https://doi.org/10.1145/3173574.3173856
+    Activity. CHI '18, Paper 282. https://doi.org/10.1145/3173574.3173856
 """
 
 import numpy as np
@@ -30,9 +43,65 @@ except ImportError:
     )
 
 
+def _modmax(x: np.ndarray) -> np.ndarray:
+    """Local modulus maxima of `|x|`. Returns an array the same shape as
+    `x`, zero except at samples where `|x[i]|` is greater than both of
+    its immediate neighbours; at those indices the value is `x[i]`. The
+    endpoints can never be local maxima under this definition (matches
+    Duchowski 2018/2020 Listings).
+    """
+    if x.size < 3:
+        return np.zeros_like(x)
+    abs_x = np.abs(x)
+    out = np.zeros_like(x)
+    interior = (abs_x[1:-1] > abs_x[:-2]) & (abs_x[1:-1] > abs_x[2:])
+    out[1:-1] = np.where(interior, x[1:-1], 0.0)
+    return out
+
+
+def _universal_threshold(modmax_values: np.ndarray) -> float:
+    """Donoho universal threshold `σ √(2 log₂ N)` where σ is estimated
+    from the modulus-maxima vector itself (paper choice; *not* MAD on
+    the finest detail level). Uses the paper's `log2`, not `ln`.
+    """
+    survivors = modmax_values[modmax_values != 0]
+    n = max(survivors.size, 1)
+    sigma = float(np.std(survivors)) if survivors.size >= 2 else 0.0
+    return sigma * np.sqrt(2.0 * np.log2(n)) if sigma > 0 else 0.0
+
+
+def _modmax_count_per_second(coeffs: np.ndarray, duration_s: float) -> float:
+    """count(|modmax(coeffs)| > universal_threshold) / duration_s. Paper §3.2."""
+    mm = _modmax(coeffs)
+    lam = _universal_threshold(mm)
+    if lam <= 0:
+        # Degenerate: no spread in the modmax vector ⇒ no survivors by
+        # definition. Reporting 0 (rather than NaN) matches the paper's
+        # "perfectly steady signal yields zero index" intuition.
+        return 0.0
+    survivors = np.sum(np.abs(mm) > lam)
+    return float(survivors) / duration_s
+
+
 @dataclass
 class LHIPAResult:
-    """Result of LHIPA calculation."""
+    """Result of LHIPA calculation per Duchowski et al. 2020.
+
+    Fields:
+        lhipa:     Canonical LHIPA value (count of surviving modulus
+                   maxima of the LF/HF ratio coefficient series,
+                   normalised by duration in seconds). Decreases with
+                   rising cognitive load.
+        low_ipa:   IPA at the LF level (count of surviving modulus
+                   maxima of cD_L / duration_seconds). Background field
+                   preserved for diagnostic and back-compat use.
+        high_ipa:  IPA at the HF level (count of surviving modulus
+                   maxima of cD_H / duration_seconds). Same.
+        mean_pupil, std_pupil: descriptive statistics of the input.
+        n_samples, sample_rate: input shape.
+        is_valid:  True if the algorithm produced a finite result.
+        error_message: human-readable reason on failure.
+    """
     lhipa: float
     low_ipa: float
     high_ipa: float
@@ -46,41 +115,47 @@ class LHIPAResult:
 
 class LHIPACalculator:
     """
-    Calculator for the Low/High Index of Pupillary Activity (LHIPA).
+    Calculator for the canonical Low/High Index of Pupillary Activity
+    (LHIPA) of Duchowski et al. (2020).
 
-    The LHIPA analyzes pupil diameter oscillations using wavelet decomposition
-    to estimate cognitive load. It separates pupil fluctuations into low and
-    high frequency components.
-
-    - Low-frequency components (< 0.5 Hz): Related to slow arousal changes
-    - High-frequency components (> 0.5 Hz): Related to task-evoked responses
-
-    The ratio of high to low frequency activity indicates cognitive load.
+    Implements the paper's Listing 1: discrete wavelet decomposition with
+    Symlets-16, paired detail-coefficient bands at j_HF = 1 and
+    j_LF = floor(log2(maxlevel) / 2), per-sample LF/HF coefficient
+    ratio, modulus maxima, Donoho universal threshold, and count of
+    survivors normalised by duration. **Lower LHIPA = higher cognitive
+    load** (paper §4).
 
     Example:
         >>> calculator = LHIPACalculator()
         >>> result = calculator.calculate(pupil_diameter, sample_rate=120)
-        >>> print(f"LHIPA = {result.lhipa:.3f}")
+        >>> print(f"LHIPA = {result.lhipa:.3f} survivals/s")
     """
 
     def __init__(self,
                  wavelet: str = 'sym16',
-                 decomposition_level: Optional[int] = None,
-                 low_freq_cutoff: float = 0.5,
+                 j_high: int = 1,
+                 j_low: Optional[int] = None,
                  min_duration: float = 5.0):
         """
         Initialize the LHIPA calculator.
 
         Args:
-            wavelet: Wavelet type for decomposition (default 'sym16' as per paper).
-            decomposition_level: Level of wavelet decomposition (auto-calculated if None).
-            low_freq_cutoff: Frequency cutoff for low/high separation (Hz).
-            min_duration: Minimum signal duration in seconds for valid calculation.
+            wavelet: Wavelet basis. Paper uses 'sym16'. Override only
+                     if you have a specific reason; results are not
+                     directly comparable to the paper's numbers under
+                     a different basis.
+            j_high:  DWT detail level for the HF band. Paper sets j_HF=1.
+            j_low:   DWT detail level for the LF band. Paper sets
+                     j_LF = floor(maxlevel / 2). When None (default),
+                     auto-derived per signal at calculation time using
+                     `dwt_max_level`.
+            min_duration: Minimum signal duration in seconds for valid
+                     calculation (need enough cycles at the LF band).
         """
         self.wavelet = wavelet
-        self.decomposition_level = decomposition_level
-        self.low_freq_cutoff = low_freq_cutoff
-        self.min_duration = min_duration
+        self.j_high = int(j_high)
+        self.j_low = None if j_low is None else int(j_low)
+        self.min_duration = float(min_duration)
 
     def calculate(self,
                   pupil_data: np.ndarray,
@@ -145,9 +220,9 @@ class LHIPACalculator:
                 error_message=f"Duration too short ({duration:.2f}s < {self.min_duration}s)",
             )
 
-        # Calculate LHIPA using wavelet decomposition
+        # Canonical LHIPA per Duchowski et al. 2020 Listing 1.
         try:
-            low_ipa, high_ipa = self._wavelet_ipa(pupil_clean, sample_rate)
+            lhipa, low_ipa, high_ipa = self._compute_lhipa(pupil_clean, sample_rate)
         except Exception as e:
             return LHIPAResult(
                 lhipa=np.nan,
@@ -161,13 +236,6 @@ class LHIPACalculator:
                 error_message=f"Wavelet decomposition failed: {str(e)}",
             )
 
-        # LHIPA = High IPA / Low IPA (or a normalized combination)
-        # Higher LHIPA indicates higher cognitive load
-        if low_ipa > 0:
-            lhipa = high_ipa / low_ipa
-        else:
-            lhipa = high_ipa if high_ipa > 0 else 0.0
-
         return LHIPAResult(
             lhipa=lhipa,
             low_ipa=low_ipa,
@@ -179,53 +247,82 @@ class LHIPACalculator:
             is_valid=True,
         )
 
-    def _wavelet_ipa(self, data: np.ndarray, sample_rate: float) -> Tuple[float, float]:
-        """
-        Calculate IPA using wavelet decomposition.
+    def _compute_lhipa(self, data: np.ndarray, sample_rate: float) -> Tuple[float, float, float]:
+        """Canonical LHIPA per Duchowski et al. 2020, Listing 1.
 
-        The method decomposes the signal into approximation (low-frequency) and
-        detail (high-frequency) coefficients, then calculates the "activity"
-        in each band.
+        Returns:
+            (lhipa, low_ipa, high_ipa):
+              lhipa    — count of surviving modulus maxima of the LF/HF
+                         coefficient ratio per second.
+              low_ipa  — count of surviving modulus maxima of cD_L per
+                         second (single-band IPA at the LF level).
+              high_ipa — same for cD_H.
+
+        Sign convention: lhipa **decreases** with rising cognitive load
+        (paper §4). The two single-band IPAs typically rise with HF
+        oscillation and fall with smoothing, but their absolute
+        comparison across recordings depends on duration and basis.
         """
-        # Determine decomposition level
-        if self.decomposition_level is not None:
-            level = self.decomposition_level
+        wavelet = pywt.Wavelet(self.wavelet)
+        max_level = pywt.dwt_max_level(len(data), wavelet.dec_len)
+        # Need at least the HF level + one more decomposition step for
+        # an LF level to exist. dwt_max_level == 1 means the signal is
+        # too short for a meaningful LF band.
+        if max_level < 2:
+            return float('nan'), float('nan'), float('nan')
+
+        j_high = int(self.j_high)
+        # Paper Listing 1: `lof = int(maxlevel / 2)`. Capped at
+        # max_level so we don't ask for a deeper decomposition than the
+        # signal supports, and forced strictly above j_high so the LF
+        # band is genuinely lower-frequency than the HF band.
+        if self.j_low is None:
+            j_low = max(j_high + 1, int(max_level // 2))
+            j_low = min(j_low, max_level)
         else:
-            # Pyramid algorithm: at decomposition level L the approximation
-            # coefficients capture frequencies in [0, fs/2^(L+1)). To place
-            # the LF/HF band boundary near `low_freq_cutoff` we want
-            #     fs / 2^(L+1) ~= low_freq_cutoff
-            #     L = log2(fs / low_freq_cutoff) - 1
-            # Duchowski et al. (2018, CHI '18) use L = floor(log2(fs/cutoff)),
-            # which puts the boundary at cutoff/2 — one level deeper than the
-            # naive derivation, slightly conservative (HF activity gets a
-            # wider band than LF). We keep the paper's formula for parity with
-            # the published results; adjust only via the explicit
-            # `decomposition_level` constructor arg if you need a different
-            # split. `dwt_max_level` clamps L to what the signal length allows.
-            max_level = pywt.dwt_max_level(len(data), pywt.Wavelet(self.wavelet).dec_len)
-            level = min(max_level, int(np.log2(sample_rate / self.low_freq_cutoff)))
-            level = max(1, level)
+            j_low = int(self.j_low)
+        if j_low <= j_high:
+            j_low = j_high + 1
 
-        # Perform wavelet decomposition
-        coeffs = pywt.wavedec(data, self.wavelet, level=level)
+        # Single-level downcoef extraction at each band, then renormalize
+        # by sqrt(2^level) per Listing 1.
+        cD_h = pywt.downcoef('d', data, self.wavelet, mode='per', level=j_high)
+        cD_l = pywt.downcoef('d', data, self.wavelet, mode='per', level=j_low)
+        cD_h = cD_h / np.sqrt(2.0 ** j_high)
+        cD_l = cD_l / np.sqrt(2.0 ** j_low)
 
-        # coeffs[0] = approximation coefficients (lowest frequencies)
-        # coeffs[1:] = detail coefficients (high to low frequency)
+        # Per-sample LF/HF ratio. cD_l is shorter than cD_h by a factor
+        # of 2^(j_low - j_high); index cD_h with that stride so each
+        # cD_l[i] is matched with the contemporaneous cD_h[stride · i].
+        stride = int(round(2.0 ** (j_low - j_high)))
+        if stride <= 0:
+            return float('nan'), float('nan'), float('nan')
+        n_lh = len(cD_l)
+        max_h_index = stride * (n_lh - 1)
+        if max_h_index >= len(cD_h):
+            n_lh = len(cD_h) // stride
+            cD_l = cD_l[:n_lh]
+        # Vectorised cD_LH[i] = cD_L[i] / cD_H[stride · i] per Listing 1.
+        # The paper does not guard against small denominators — large
+        # ratio magnitudes when cD_H is small are the very signal LHIPA
+        # is sensitive to. We only mask exact zeros (which produce inf)
+        # so the modmax/threshold step has finite inputs.
+        h_indexed = cD_h[np.arange(n_lh) * stride]
+        with np.errstate(divide='ignore', invalid='ignore'):
+            cD_lh = cD_l / np.where(h_indexed == 0.0, np.nan, h_indexed)
+        cD_lh = cD_lh[np.isfinite(cD_lh)]
+        if cD_lh.size < 4:
+            return float('nan'), float('nan'), float('nan')
 
-        # Calculate Low IPA from approximation coefficients
-        # IPA is proportional to the sum of absolute differences
-        approx = coeffs[0]
-        low_activity = np.sum(np.abs(np.diff(approx))) / len(approx)
+        # Modulus maxima + Donoho universal threshold + count per second.
+        duration_s = len(data) / sample_rate
+        if duration_s <= 0:
+            return float('nan'), float('nan'), float('nan')
 
-        # Calculate High IPA from detail coefficients
-        # Sum activity across all detail levels
-        high_activity = 0.0
-        for detail in coeffs[1:]:
-            if len(detail) > 1:
-                high_activity += np.sum(np.abs(np.diff(detail))) / len(detail)
-
-        return low_activity, high_activity
+        lhipa    = _modmax_count_per_second(cD_lh, duration_s)
+        low_ipa  = _modmax_count_per_second(cD_l,  duration_s)
+        high_ipa = _modmax_count_per_second(cD_h,  duration_s)
+        return lhipa, low_ipa, high_ipa
 
     def _interpolate_nans(self, data: np.ndarray) -> np.ndarray:
         """Interpolate NaN values using linear interpolation."""

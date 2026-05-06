@@ -80,5 +80,37 @@ namespace EyeLean.Tests.EditMode
                 out float _, out float _);
             Assert.IsFalse(ok, "Parallel rays should fail intersection.");
         }
+
+        [Test]
+        public void CalculateVectorVectorIntersection_AsymmetricTarget_LocksPaperIndexConvention()
+        {
+            // Locks in Duchowski et al. 2022's t_1/t_2 indexing convention.
+            // The paper's t_2 is the parameter on the LEFT ray
+            // (P_1 + t_2 R_2), and the paper's t_1 is the parameter on
+            // the RIGHT ray (P_3 + t_1 R_4) — the subscript matches the
+            // dot-product equation index, not the ray index.
+            //
+            // For two rays that both converge perfectly on a known target
+            // Q, the closest-points-on-skew-lines reduce to Q itself. Pick
+            // an asymmetric Q so the two parameters genuinely differ, and
+            // assert the paper's pairing places I_L and I_R on Q.
+            var et = _go.AddComponent<EyeTracker>();
+            Vector3 lo = new Vector3(-0.03f, 0f, 0f);
+            Vector3 ro = new Vector3(0.03f, 0f, 0f);
+            Vector3 Q  = new Vector3(0.30f, 0f, 0.15f);
+            Vector3 ld = (Q - lo).normalized;
+            Vector3 rd = (Q - ro).normalized;
+
+            bool ok = et.CalculateVectorVectorIntersection(lo, ro, ld, rd, out float t1, out float t2);
+            Assert.IsTrue(ok);
+
+            // Paper convention: I_L uses t2, I_R uses t1.
+            Vector3 il = lo + t2 * ld;
+            Vector3 ir = ro + t1 * rd;
+            Assert.AreEqual(Q.x, il.x, 1e-4f, "I_L (paper: t_2 on left ray) should land on Q.x");
+            Assert.AreEqual(Q.z, il.z, 1e-4f, "I_L (paper: t_2 on left ray) should land on Q.z");
+            Assert.AreEqual(Q.x, ir.x, 1e-4f, "I_R (paper: t_1 on right ray) should land on Q.x");
+            Assert.AreEqual(Q.z, ir.z, 1e-4f, "I_R (paper: t_1 on right ray) should land on Q.z");
+        }
     }
 }

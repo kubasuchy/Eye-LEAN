@@ -66,7 +66,16 @@ def schaefer_half_width(sample_rate: float, target_cutoff_hz: float, poly_order:
 
     Returns ``M`` (half-width) given ``poly_order = N`` and a target cutoff
     expressed in Hz. Clamped to ``M ≥ N + 1`` so the SG fit is well-posed.
+
+    A ``UserWarning`` is emitted when the derived ``M`` falls below
+    Schäfer's published validity range (``M ≥ 25``); in that regime the
+    formula's actual −3 dB point can be 10–30% off the requested cutoff.
+    The function does NOT auto-clamp to 25 — doing so would widen the
+    SG window beyond what the live sample rate can accommodate and
+    stale the RIPA2 buffer further. Pass an explicit half-width to
+    ``calculate_ripa2`` if you need a different kernel.
     """
+    import warnings as _warnings
     if sample_rate <= 0:
         raise ValueError("sample_rate must be > 0")
     if poly_order < 1:
@@ -76,7 +85,18 @@ def schaefer_half_width(sample_rate: float, target_cutoff_hz: float, poly_order:
         raise ValueError("target_cutoff_hz must lie in (0, sample_rate/2)")
     fc = target_cutoff_hz / nyquist
     M = ((poly_order + 1) / fc + 4.6) / 3.2
-    return max(int(round(M)), poly_order + 1)
+    Mi = max(int(round(M)), poly_order + 1)
+    if Mi < 25:
+        _warnings.warn(
+            f"Schäfer cutoff approximation used at M={Mi} (< 25); requested "
+            f"f_c={target_cutoff_hz} Hz at fs={sample_rate} Hz with N={poly_order}. "
+            f"Real −3 dB point may be 10–30% off the requested cutoff. "
+            f"Returning M={Mi} unclamped — pass an explicit half-width to "
+            f"calculate_ripa2 if you need a different kernel.",
+            UserWarning,
+            stacklevel=2,
+        )
+    return Mi
 
 
 def sg_first_derivative_coeffs(half_width: int, poly_order: int) -> np.ndarray:
@@ -205,8 +225,11 @@ def calculate_ripa2(
         vlf_window = pupil[vlf_start : vlf_start + n_vlf]
         lf_start = t - lf_half_width
         lf_window = pupil[lf_start : lf_start + n_lf]
-        v = float(h_vlf @ vlf_window)
-        l = float(h_lf @ lf_window)
+        # SG kernels return a per-sample derivative (dy/dn). Rescale by
+        # sample_rate to per-second so the squared difference lands in
+        # the paper's [0, 1.5] clip range. Mirrors the Unity analyzer.
+        v = float(h_vlf @ vlf_window) * sample_rate
+        l = float(h_lf @ lf_window) * sample_rate
         val = (l * l) - (v * v)
         if not np.isfinite(val):
             raw[t] = np.nan

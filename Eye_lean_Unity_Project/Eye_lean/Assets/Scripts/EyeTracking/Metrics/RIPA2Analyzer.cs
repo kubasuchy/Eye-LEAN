@@ -19,10 +19,10 @@ namespace EyeTracking.Metrics
     /// Pure C# — no Unity types; safe to construct in EditMode tests, in a
     /// background thread, or from a Python parity harness via P/Invoke.
     ///
-    /// The output value is in (mm/s)^2 — the SG outputs are rescaled by
-    /// the configured sample rate before squaring so the difference fits
-    /// the paper's [0, 1.5] clip range across the typical pupil-dynamics
-    /// envelope. Higher values indicate more cognitive load.
+    /// Units convention: each SG branch is rescaled by SampleRateHz
+    /// before squaring so the per-second derivative² difference lands
+    /// in the paper's [0, 1.5] clip range. Higher values indicate more
+    /// cognitive load.
     /// </summary>
     public sealed class RIPA2Analyzer
     {
@@ -127,16 +127,14 @@ namespace EyeTracking.Metrics
             double valueVlf = SgVlf.ApplyRing(ringBuffer, vlfStart);
             double valueLf = SgLf.ApplyRing(ringBuffer, lfStart);
 
-            // The Savitzky-Golay coefficients deliver a PER-SAMPLE derivative;
-            // the paper's RIPA2 (and its [0, 1.5] clip range) assumes a
-            // PER-SECOND derivative. Without this time-base conversion, the
-            // squared derivatives are underscaled by sampleRateHz^2 (at
-            // 120 Hz that's a 14,400× collapse into the noise floor).
-            // Rescaling each SG output by SampleRateHz before squaring
-            // restores the paper's published range and preserves the
-            // constant-signal-to-zero invariant.
+            // The Savitzky-Golay coefficients yield a per-sample
+            // derivative dy/dn. The paper's clip range [0, 1.5] sits at
+            // per-second-derivative² magnitudes, so we rescale each
+            // branch by SampleRateHz before squaring. Hardware-validated
+            // at 60 Hz — without this rescaling the squared difference
+            // collapses by f_s² into the noise floor.
             valueVlf *= SampleRateHz;
-            valueLf *= SampleRateHz;
+            valueLf  *= SampleRateHz;
 
             double raw = (valueLf * valueLf) - (valueVlf * valueVlf);
             if (raw < ClipMin) raw = ClipMin;
@@ -165,11 +163,11 @@ namespace EyeTracking.Metrics
             int lfStart = vlfStart + (SgVlf.HalfWidth - SgLf.HalfWidth);
             double valueVlf = SgVlf.Apply(pupil, vlfStart);
             double valueLf = SgLf.Apply(pupil, lfStart);
-            // Match the streaming path's per-second rescaling so a one-shot
-            // window-based call returns the same value as the analyzer's
-            // streaming CurrentRaw given the same data.
+            // Match the streaming path's per-second rescaling so a
+            // one-shot window-based call returns the same value as the
+            // analyzer's streaming CurrentRaw given the same data.
             valueVlf *= SampleRateHz;
-            valueLf *= SampleRateHz;
+            valueLf  *= SampleRateHz;
             double raw = (valueLf * valueLf) - (valueVlf * valueVlf);
             if (raw < ClipMin) raw = ClipMin;
             else if (raw > ClipMax) raw = ClipMax;

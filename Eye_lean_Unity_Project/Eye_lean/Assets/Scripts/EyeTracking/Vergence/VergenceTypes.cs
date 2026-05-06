@@ -18,8 +18,8 @@ namespace EyeTracking.Vergence
     /// </summary>
     public enum VergenceCalculationMethod
     {
-        Simple,             // Ray-ray closest-point algorithm
-        PaperAlgorithm      // Vector-vector intersection from the reference paper (equivalent math)
+        Simple,             // Ray-ray closest-point algorithm (Eberly form)
+        PaperAlgorithm      // Vector-vector intersection per Duchowski et al. 2022. Note: paper indexes t_2 with the left ray (R_2) and t_1 with the right ray (R_4) — see EyeTracker.CalculateUsingPaperAlgorithm.
     }
 
     /// <summary>

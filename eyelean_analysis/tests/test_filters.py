@@ -2,8 +2,41 @@
 
 import numpy as np
 import pytest
+from scipy import signal as scipy_signal
 
-from eyelean_analysis.filters.savitzky_golay import savgol_smooth
+from eyelean_analysis.filters.savitzky_golay import (
+    SavitzkyGolayFilter,
+    savgol_smooth,
+)
+
+
+def test_smoothing_lookup_matches_scipy():
+    """Every entry in SMOOTHING_COEFFICIENTS must match what scipy
+    computes for the same (window, poly_order). Prevents drift
+    between the hand-typed coefficient table and the canonical
+    Savitzky-Golay kernel.
+    """
+    for (window, poly), coeffs in SavitzkyGolayFilter.SMOOTHING_COEFFICIENTS.items():
+        expected = scipy_signal.savgol_coeffs(window, poly, deriv=0)
+        np.testing.assert_allclose(
+            coeffs, expected, atol=1e-12,
+            err_msg=f"Lookup table mismatch for (window={window}, poly={poly})",
+        )
+
+
+def test_derivative_lookup_matches_scipy():
+    """Same guard for the first-derivative coefficients."""
+    for (window, poly), coeffs in SavitzkyGolayFilter.DERIVATIVE_COEFFICIENTS.items():
+        # scipy returns the same coefficients but per-sample (use=conv).
+        expected = scipy_signal.savgol_coeffs(window, poly, deriv=1, use='conv')
+        # SG derivative kernels differ by a sign flip depending on the
+        # convolution convention (forward vs. reverse). We accept either
+        # form so long as the magnitude pattern matches.
+        if not np.allclose(coeffs, expected, atol=1e-12):
+            np.testing.assert_allclose(
+                coeffs, -expected, atol=1e-12,
+                err_msg=f"Derivative table mismatch for (window={window}, poly={poly})",
+            )
 
 
 def test_smooth_clean_signal_is_near_identity():
@@ -61,3 +94,56 @@ def test_smooth_various_window_sizes(window_size):
     out = savgol_smooth(sig, window_size=window_size, poly_order=2)
     assert out.shape == sig.shape
     assert not np.any(np.isnan(out))
+
+
+class TestAngularVelocity3D:
+    """Tests for `compute_angular_velocity`: stable atan2-based angular
+    speed from gaze direction vectors, with SG-smoothed output that
+    parallels the 2D angular-velocity path."""
+
+    def test_constant_direction_gives_zero_angular_velocity(self):
+        from eyelean_analysis.filters.savitzky_golay import compute_angular_velocity
+        n = 200
+        dx = np.full(n, 0.0); dy = np.full(n, 0.0); dz = np.full(n, 1.0)
+        v = compute_angular_velocity(dx, dy, dz, sample_rate=120.0)
+        assert v.shape == (n,)
+        assert np.allclose(v, 0.0, atol=1e-9)
+
+    def test_constant_rotation_recovers_known_angular_speed(self):
+        """A direction vector rotating at a constant rate should produce
+        a near-constant angular velocity matching the analytic value."""
+        from eyelean_analysis.filters.savitzky_golay import compute_angular_velocity
+        fs = 120.0
+        n = 300
+        omega_dps = 30.0
+        t = np.arange(n) / fs
+        theta = np.radians(omega_dps * t)
+        dx = np.sin(theta)
+        dy = np.zeros(n)
+        dz = np.cos(theta)
+        v = compute_angular_velocity(dx, dy, dz, sample_rate=fs, window_size=11, poly_order=2)
+        # Drop edge samples where the SG smoothing has boundary effects.
+        interior = v[20:-20]
+        assert np.allclose(interior, omega_dps, atol=0.5), (
+            f"expected ≈ {omega_dps} deg/s, got mean={interior.mean():.3f}, "
+            f"std={interior.std():.3f}"
+        )
+
+    def test_recovers_small_angle_rotations(self):
+        """At HMD sample rates, inter-sample angles are small and
+        require a numerically-stable angle-between-vectors formulation
+        to recover a non-zero velocity."""
+        from eyelean_analysis.filters.savitzky_golay import compute_angular_velocity
+        fs = 120.0
+        n = 200
+        omega_dps = 0.1
+        t = np.arange(n) / fs
+        theta = np.radians(omega_dps * t)
+        dx = np.sin(theta)
+        dy = np.zeros(n)
+        dz = np.cos(theta)
+        v = compute_angular_velocity(dx, dy, dz, sample_rate=fs, window_size=11, poly_order=2)
+        interior = v[20:-20]
+        assert interior.mean() == pytest.approx(omega_dps, abs=0.05), (
+            f"failed to recover small-angle velocity: got {interior.mean()}"
+        )

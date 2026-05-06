@@ -1,13 +1,41 @@
 """
 Velocity-threshold (I-VT) eye movement classification.
 
-Implements fixation and saccade detection based on the I-VT algorithm.
+Implements fixation and saccade detection based on the I-VT algorithm of
+Salvucci & Goldberg (2000) extended with the now-standard duration and
+gap-based filtering of Olsson (2007) / Komogortsev et al. (2010). The
+core threshold-and-group step is Salvucci–Goldberg; the
+`min_fixation_duration` / `min_saccade_duration` / `merge_threshold`
+parameters and their default values follow the Olsson/Tobii I-VT-Filter
+convention (notably the 75 ms inter-fixation merge gap).
 
-Reference:
-    Salvucci, D. D., & Goldberg, J. H. (2000). Identifying fixations and
-    saccades in eye-tracking protocols. Proceedings of the 2000 symposium
-    on Eye tracking research & applications (ETRA '00), 71-78.
+This module also uses Savitzky-Golay derivative smoothing to compute
+velocity, which is a strict improvement over Salvucci-Goldberg's
+two-point finite difference for high-sample-rate eye trackers; see
+Nyström & Holmqvist (2010) for the rationale.
+
+References:
+    Salvucci, D. D., & Goldberg, J. H. (2000). Identifying fixations
+    and saccades in eye-tracking protocols. *ETRA '00*, 71-78.
     https://doi.org/10.1145/355017.355028
+    — the I-VT velocity-threshold algorithm.
+
+    Olsson, P. (2007). *Real-time and offline filters for eye tracking.*
+    MSc thesis, KTH/Tobii.
+    — minimum-duration filtering and the 75 ms inter-fixation merge.
+
+    Komogortsev, O. V., Gobert, D. V., Jayarathna, S., Koh, D. H., &
+    Gowda, S. M. (2010). Standardization of automated analyses of
+    oculomotor fixation and saccadic behaviors. *IEEE Transactions on
+    Biomedical Engineering*, 57(11), 2635-2645.
+    https://doi.org/10.1109/TBME.2010.2057429
+    — formal evaluation framework for I-VT plus its post-processing
+    additions.
+
+    Nyström, M., & Holmqvist, K. (2010). An adaptive algorithm for
+    fixation, saccade, and glissade detection in eye-tracking data.
+    *Behavior Research Methods*, 42, 188-204.
+    — rationale for derivative smoothing over two-point differences.
 """
 
 import warnings
@@ -399,7 +427,13 @@ class VelocityClassifier:
     def _merge_fixations(self,
                          fixations: List[Fixation],
                          timestamps: np.ndarray) -> List[Fixation]:
-        """Merge nearby fixations with short gaps between them."""
+        """Merge nearby fixations whose inter-event gap is ≤ `merge_threshold`.
+
+        Centroid is sample-count-weighted (Olsson 2007 / Tobii I-VT-Filter)
+        rather than averaged with equal weights — when one fixation is
+        much longer than the other, equal-weight averaging biases the
+        merged centroid toward the shorter event.
+        """
         if len(fixations) <= 1:
             return fixations
 
@@ -410,18 +444,26 @@ class VelocityClassifier:
             gap = fix.start_time - prev.end_time
 
             if gap <= self.merge_threshold:
-                # Merge fixations
+                w_prev = prev.sample_count
+                w_curr = fix.sample_count
+                w_total = w_prev + w_curr if (w_prev + w_curr) > 0 else 1
+                cz_prev, cz_curr = prev.centroid_z, fix.centroid_z
+                merged_cz = (
+                    (cz_prev * w_prev + cz_curr * w_curr) / w_total
+                    if (cz_prev is not None and cz_curr is not None)
+                    else None
+                )
                 new_fix = Fixation(
                     start_idx=prev.start_idx,
                     end_idx=fix.end_idx,
                     start_time=prev.start_time,
                     end_time=fix.end_time,
                     duration=fix.end_time - prev.start_time,
-                    centroid_x=(prev.centroid_x + fix.centroid_x) / 2,
-                    centroid_y=(prev.centroid_y + fix.centroid_y) / 2,
-                    centroid_z=(prev.centroid_z + fix.centroid_z) / 2 if prev.centroid_z and fix.centroid_z else None,
-                    dispersion=(prev.dispersion + fix.dispersion) / 2,
-                    sample_count=prev.sample_count + fix.sample_count,
+                    centroid_x=(prev.centroid_x * w_prev + fix.centroid_x * w_curr) / w_total,
+                    centroid_y=(prev.centroid_y * w_prev + fix.centroid_y * w_curr) / w_total,
+                    centroid_z=merged_cz,
+                    dispersion=(prev.dispersion * w_prev + fix.dispersion * w_curr) / w_total,
+                    sample_count=w_total,
                 )
                 merged[-1] = new_fix
             else:

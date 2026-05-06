@@ -6,6 +6,14 @@ namespace EyeTracking.Vergence
     /// <summary>
     /// Handles smoothing of vergence calculations with multiple algorithm support.
     /// Supports WeightedEMA, Butterworth IIR, and Savitzky-Golay polynomial smoothing.
+    ///
+    /// Attribution note for WeightedEMA: only the final EMA blend
+    /// (`y = (1−α) · averaged + α · y_prev`) is the textbook EMA of
+    /// Roberts (1959) / Brown (1963). The preceding quality-and-time-
+    /// weighted history average and the adaptive-α rescaling
+    /// (distance- and quality-conditioned) are Eye_lean implementation
+    /// details with no paper basis — they are heuristics tuned for
+    /// VIVE Focus Vision vergence noise characteristics.
     /// </summary>
     public class VergenceSmoothingProcessor
     {

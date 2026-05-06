@@ -160,11 +160,13 @@ Implementation: `CalculateUsingPaperAlgorithm` +
   ```
 
   Reject when `t1 < 0` or `t2 < 0` (intersection behind the eyes).
-  Then:
+  Then (per Duchowski et al.'s unconventional indexing — `t_2`
+  parameterizes the **left** ray and `t_1` the **right** ray; the
+  subscript matches the equation index, not the ray index):
 
   ```
-  I_L = P_L + t1·D_L
-  I_R = P_R + t2·D_R
+  I_L = P_L + t2·D_L      # left ray uses t2
+  I_R = P_R + t1·D_R      # right ray uses t1
   V   = (I_L + I_R) / 2
   q   = || I_L − I_R ||
   ```

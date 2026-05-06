@@ -57,8 +57,13 @@ carry the same citation.
   Frequency analysis of a task-evoked pupillary response. *Int. J.
   Psychophysiology*, 112, 40–45.
 - **Medeiros, J., Couceiro, R., et al.** (2021). Software code
-  complexity assessment using EEG features. *Sensors*, 21, 5128. —
-  with Peysakhovich 2017, the basis for the VLF/LF band split.
+  complexity assessment using EEG features. *Sensors*, 21, 5128.
+
+Peysakhovich 2017 and Medeiros 2021 are background motivation for
+separating low-frequency cognitive from very-low-frequency luminance-
+driven components of the pupil signal; the specific RIPA2 cutoffs
+(≈ 0.29 Hz VLF / ≈ 4 Hz LF) are taken from Jayawardena, Jayawardana &
+Gwizdka 2025 itself.
 
 ## Eye-movement classification
 
@@ -84,6 +89,23 @@ carry the same citation.
   *Bell System Tech. J.*, 27(3), 379–423.
   <https://doi.org/10.1002/j.1538-7305.1948.tb01338.x> — basis for
   `GazeEntropyCalculator` and the stationary-entropy helper.
+
+## Vergence-point smoothing
+
+`VergenceSmoothingProcessor.ApplyWeightedEMA` blends a quality-and-time-
+weighted history average through an exponential-moving-average step.
+Only the final EMA blend is covered by:
+
+- **Roberts, S. W.** (1959). Control Chart Tests Based on Geometric
+  Moving Averages. *Technometrics*, 1(3), 239–250.
+  <https://doi.org/10.1080/00401706.1959.10489860>
+- **Brown, R. G.** (1963). *Smoothing, Forecasting and Prediction of
+  Discrete Time Series.* Prentice-Hall.
+
+The quality-and-time weighting and the adaptive-α rescaling
+(distance- and quality-conditioned) are Eye_lean implementation
+details with no paper basis — they are heuristics tuned for VIVE
+Focus Vision vergence noise characteristics.
 
 ## Signal processing
 

@@ -589,7 +589,12 @@ namespace EyeTracking.Components
             if (!hasValidLeftData || !hasValidRightData) { result.isValid = false; result.debugInfo = "Paper algorithm needs both eyes"; return result; }
             bool ok = CalculateVectorVectorIntersection(lo, ro, ld, rd, out float t1, out float t2);
             if (!ok || t1 < 0f || t2 < 0f) { result.isValid = false; result.debugInfo = "No valid intersection"; return result; }
-            Vector3 li = lo + t1 * ld, ri = ro + t2 * rd;
+            // Duchowski et al. 2022 use unconventional indexing: t_2 is the
+            // parameter on the LEFT ray (P_1 + t_2 R_2) and t_1 is the
+            // parameter on the RIGHT ray (P_3 + t_1 R_4). The subscript on t
+            // matches the equation index (1st vs 2nd dot-product equation),
+            // not the ray index. See ALGORITHMS.md for the derivation.
+            Vector3 li = lo + t2 * ld, ri = ro + t1 * rd;
             result.quality = Vector3.Distance(li, ri);
             result.rawVergencePoint = (li + ri) * 0.5f;
             result.isValid = ValidateVergenceResult(result, lo, ro, ld, rd);
