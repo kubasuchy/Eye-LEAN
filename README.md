@@ -1,14 +1,14 @@
-# EYE-LEAN
+# Eye-LEAN
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20040453.svg)](https://doi.org/10.5281/zenodo.20040453)
 [![PyPI](https://img.shields.io/pypi/v/eyelean-analysis.svg)](https://pypi.org/project/eyelean-analysis/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**EYE-LEAN** (**L**ocomotion, **E**xploration, **A**ction, and **N**avigation with **Eye** Tracking): a Behavioral Research Toolkit for Data Rich Virtual Reality Experiments.
+**Eye-LEAN** (**L**ocomotion, **E**xploration, **A**ction, and **N**avigation with **Eye** Tracking): a Behavioral Research Toolkit for Data Rich Virtual Reality Experiments.
 
 ## What it is
 
-Eye_lean is a Unity + Python toolkit for collecting and analyzing
+Eye-LEAN is a Unity + Python toolkit for visualizing, collecting and analyzing
 eye-tracking data from virtual-reality head-mounted displays. The Unity
 project was tested on the VIVE Focus Vision headsets (but is built on the OpenXR standard)
 and writes per-frame binocular gaze, pupil, and head-tracking data to CSV. The
@@ -44,6 +44,9 @@ Behavioral researchers who want to conduct VR experiments with eye tracking.
 | Replay system | Offline playback and inspection of recorded sessions | Unity `ReplayScene` (editor only) |
 
 ## Scene flow
+Make sure to run the device-level eye calibration first.
+To avoid issues with the environment building in the calibration and sample experiment,
+we recommend resetting the device's view right before starting the app.
 
 Three scenes ship as build targets in the APK; a fourth runs only in
 the Unity editor.
