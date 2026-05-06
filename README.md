@@ -278,7 +278,7 @@ interface and registering it with the factory.
 ## Retrieving data from the headset
 
 ```bash
-adb pull /sdcard/Android/data/com.RutgersVLC.Eye_lean/files/ ./Logs/
+adb pull /sdcard/Android/data/com.RutgersVCL.Eye_lean/files/ ./Logs/
 adb logcat -s Unity                          # live logs
 ```
 Or use Android Studio / Android File Transfer to download the files from the headset.

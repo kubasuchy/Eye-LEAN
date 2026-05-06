@@ -291,7 +291,7 @@ overhaul + MainMenu + E3 data contract landed.
 ### Fixed
 - URP material shader stripping issue
 - Android external storage for CSV export
-- Package identifier (com.RutgersVLC.Eye_lean)
+- Package identifier (com.RutgersVCL.Eye_lean)
 
 ---
 

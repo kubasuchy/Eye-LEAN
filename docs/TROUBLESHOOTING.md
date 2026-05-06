@@ -35,7 +35,7 @@ artefacts. Most procedures below ask for at least one of them.
 3. **Output CSV** on device. The persistent path resolved by
    `Assets/Scripts/EyeTracking/Configuration/DataExportSettings.cs:91`
    maps to
-   `/sdcard/Android/data/com.RutgersVLC.Eye_lean/files/EyeTrackingData/`.
+   `/sdcard/Android/data/com.RutgersVCL.Eye_lean/files/EyeTrackingData/`.
 4. **Calibration profile JSON**. Stored under
    `Application.persistentDataPath/EyeLeanProfiles/`, see
    `Assets/Scripts/EyeTracking/Configuration/EyeTrackingProfile.cs:46`.
@@ -113,7 +113,7 @@ file, or the file exists with header only.
 #### Verify
 
 `adb shell ls
-/sdcard/Android/data/com.RutgersVLC.Eye_lean/files/EyeTrackingData/`
+/sdcard/Android/data/com.RutgersVCL.Eye_lean/files/EyeTrackingData/`
 lists a `*.csv` whose size grows during a recording, and logcat
 prints `[SessionRecorder] CSV file saved:` from
 `SessionRecorder.cs:658` on stop.
@@ -188,7 +188,7 @@ the uncorrected pipeline.
    `EyeTrackingProfileApi.cs:49`. That means
    `EyeLeanProfiles/default.json` is missing or unreadable.
 4. Pull the file: `adb shell ls
-   /sdcard/Android/data/com.RutgersVLC.Eye_lean/files/EyeLeanProfiles/`.
+   /sdcard/Android/data/com.RutgersVCL.Eye_lean/files/EyeLeanProfiles/`.
    Confirm `default.json` exists and is non-empty.
 
 #### Verify
@@ -394,7 +394,7 @@ the `value` is in the expected eye-height range (~1.6m).
    **Edit > Project Settings > Graphics > Always Included Shaders**.
 4. If the trace mentions
    `Application.persistentDataPath` write errors, reinstall:
-   `adb uninstall com.RutgersVLC.Eye_lean` then push the APK again.
+   `adb uninstall com.RutgersVCL.Eye_lean` then push the APK again.
 
 #### Verify
 
@@ -410,7 +410,7 @@ from
 empty directories.
 
 1. Confirm the on-device path exists: `adb shell ls
-   /sdcard/Android/data/com.RutgersVLC.Eye_lean/files/EyeTrackingData/`.
+   /sdcard/Android/data/com.RutgersVCL.Eye_lean/files/EyeTrackingData/`.
    If the folder is missing, no session has flushed yet.
 2. The recorder flushes on `OnApplicationPause` and `OnDestroy`.
    Console / logcat should show
@@ -422,13 +422,13 @@ empty directories.
    exact path under `/sdcard/Android/data/<package>/files/...` rather
    than the legacy `/sdcard/EyeLean/` path.
 4. If `adb` reports `Permission denied`, run
-   `adb shell run-as com.RutgersVLC.Eye_lean ls files/EyeTrackingData`
+   `adb shell run-as com.RutgersVCL.Eye_lean ls files/EyeTrackingData`
    (debug builds only). For release builds, copy via
    `adb shell content`.
 
 #### Verify
 
-`adb pull /sdcard/Android/data/com.RutgersVLC.Eye_lean/files
+`adb pull /sdcard/Android/data/com.RutgersVCL.Eye_lean/files
 ./pulled` exits with `1 file pulled` or more, and the local
 `pulled/EyeTrackingData/` directory contains the session CSV.
 

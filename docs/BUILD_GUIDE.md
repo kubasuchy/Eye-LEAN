@@ -51,9 +51,9 @@ tab matches:
 
 | Setting | Required value |
 |---------|----------------|
-| Company Name | RutgersVLC |
+| Company Name | RutgersVCL |
 | Product Name | Eye_lean |
-| Package Name | com.RutgersVLC.Eye_lean |
+| Package Name | com.RutgersVCL.Eye_lean |
 | Minimum API Level | 25 (Android 7.1) |
 | Target API Level | Automatic (highest) |
 | Scripting Backend | IL2CPP |
@@ -151,7 +151,7 @@ mode.
    ```
 4. Launch the app:
    ```bash
-   adb shell am start -n com.RutgersVLC.Eye_lean/com.unity3d.player.UnityPlayerActivity
+   adb shell am start -n com.RutgersVCL.Eye_lean/com.unity3d.player.UnityPlayerActivity
    ```
 
 #### Verify
@@ -167,13 +167,13 @@ Eye tracking data is saved to the device's persistent data path:
 
 ```bash
 # List files
-adb shell ls /sdcard/Android/data/com.RutgersVLC.Eye_lean/files/
+adb shell ls /sdcard/Android/data/com.RutgersVCL.Eye_lean/files/
 
 # Pull all data
-adb pull /sdcard/Android/data/com.RutgersVLC.Eye_lean/files/ ./collected_data/
+adb pull /sdcard/Android/data/com.RutgersVCL.Eye_lean/files/ ./collected_data/
 
 # Pull specific file
-adb pull /sdcard/Android/data/com.RutgersVLC.Eye_lean/files/EyeTracking_2024-01-15_14-30-00.csv ./
+adb pull /sdcard/Android/data/com.RutgersVCL.Eye_lean/files/EyeTracking_2024-01-15_14-30-00.csv ./
 ```
 
 ## Troubleshooting build issues
@@ -266,7 +266,7 @@ After installing on the device, confirm each of the following:
 | Calibration session | All five calibration tests complete (Fixation, Smooth Pursuit, Saccade, Tuning, Verification) |
 | Sample experiment | Four phases run sequentially (FreeExploration, VisualSearch, CountingTask, ChangeDetection) |
 | CSV export | A new `EyeTracking_*.csv` appears in the persistent data folder |
-| Data retrieval | `adb pull /sdcard/Android/data/com.RutgersVLC.Eye_lean/files/ ./` succeeds |
+| Data retrieval | `adb pull /sdcard/Android/data/com.RutgersVCL.Eye_lean/files/ ./` succeeds |
 
 ## Related documentation
 

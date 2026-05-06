@@ -194,7 +194,7 @@ name in the Inspector and is not `None`.
 ## Recording an experiment
 
 A recording produces all three CSVs under
-`/storage/emulated/0/Android/data/com.RutgersVLC.Eye_lean/files/` (on
+`/storage/emulated/0/Android/data/com.RutgersVCL.Eye_lean/files/` (on
 Android) or the project's `DebugLogs/` folder (in editor).
 
 ### Workflow
@@ -215,7 +215,7 @@ Android) or the project's `DebugLogs/` folder (in editor).
 6. Pull the files off the headset:
 
    ```sh
-   adb pull /sdcard/Android/data/com.RutgersVLC.Eye_lean/files/ ./eye_lean_data/
+   adb pull /sdcard/Android/data/com.RutgersVCL.Eye_lean/files/ ./eye_lean_data/
    ```
 
 #### Verify

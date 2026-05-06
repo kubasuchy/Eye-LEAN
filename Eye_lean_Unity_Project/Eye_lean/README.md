@@ -196,7 +196,7 @@ not required.
 ## Retrieving data from the headset
 
 ```bash
-adb pull /sdcard/Android/data/com.RutgersVLC.Eye_lean/files/ ./Logs/
+adb pull /sdcard/Android/data/com.RutgersVCL.Eye_lean/files/ ./Logs/
 adb logcat -s Unity            # live logs from the device
 ```
 

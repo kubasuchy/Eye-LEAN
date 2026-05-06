@@ -23,7 +23,7 @@ Example: `EyeTracking_20241212_143052.csv`
 
 ### File Location (Android/VIVE Focus)
 ```
-/storage/emulated/0/Android/data/com.RutgersVLC.Eye_lean/files/
+/storage/emulated/0/Android/data/com.RutgersVCL.Eye_lean/files/
 ```
 
 ---
