@@ -1084,6 +1084,32 @@ namespace EyeTracking.Calibration.UI
 
         private bool isPositioned = false;
 
+        // Cached IRoomFrameProvider so PositionUI doesn't FindObjectsByType
+        // every placement; resolved lazily on first call.
+        private Transform cachedRoomFrame;
+
+        /// <summary>
+        /// Find the active <see cref="EyeTracking.Core.IRoomFrameProvider"/>
+        /// in the scene (cached after first resolve). Returns the room's
+        /// transform when one is present, null otherwise — MainMenu and
+        /// other room-less scenes get a null result and fall back to
+        /// camera-derived placement.
+        /// </summary>
+        private Transform ResolveRoomFrame()
+        {
+            if (cachedRoomFrame != null && cachedRoomFrame) return cachedRoomFrame;
+            var providers = FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None);
+            for (int i = 0; i < providers.Length; i++)
+            {
+                if (providers[i] is EyeTracking.Core.IRoomFrameProvider rfp && rfp.RoomTransform != null)
+                {
+                    cachedRoomFrame = rfp.RoomTransform;
+                    return cachedRoomFrame;
+                }
+            }
+            return null;
+        }
+
         // Suppression flag for the MainMenu single-placement path. Set true by
         // ForceWorldSpaceMode; cleared by EnforceWorldSpaceModeForSeconds once
         // it has performed its single stability-anchored placement. While true,
@@ -1134,14 +1160,38 @@ namespace EyeTracking.Calibration.UI
             }
             else
             {
-                // World-space positioning. Use a YAW-ONLY forward vector
-                // for placement and rotation so a tilted head (pitch/roll
-                // at scene load) doesn't spawn the panel at an angle.
-                Vector3 fwd = cameraTransform.forward;
-                fwd.y = 0f;
-                if (fwd.sqrMagnitude < 1e-6f) fwd = Vector3.forward; // looking straight up/down — degenerate, fall back
-                fwd.Normalize();
+                // World-space positioning. Prefer the room frame so the
+                // panel sits parallel to the back wall and its facing
+                // direction does NOT track the participant's head heading
+                // at placement time. Camera-derived yaw-only is the
+                // fallback for scenes without an IRoomFrameProvider
+                // (MainMenu, smoke tests).
+                Vector3 fwd;
+                bool roomAnchored = false;
+                Transform roomFrame = ResolveRoomFrame();
+                if (roomFrame != null)
+                {
+                    fwd = roomFrame.forward;
+                    fwd.y = 0f;
+                    if (fwd.sqrMagnitude < 1e-6f) fwd = Vector3.forward;
+                    fwd.Normalize();
+                    roomAnchored = true;
+                }
+                else
+                {
+                    // Camera fallback: yaw-only forward (head-tilt
+                    // independent for roll, but panel still faces the
+                    // participant's heading at placement).
+                    fwd = cameraTransform.forward;
+                    fwd.y = 0f;
+                    if (fwd.sqrMagnitude < 1e-6f) fwd = Vector3.forward;
+                    fwd.Normalize();
+                }
 
+                // Position uses camera XZ so the panel appears in front of
+                // wherever the participant is standing — only orientation
+                // is detached from head heading. Y from camera so the
+                // panel sits at eye level.
                 Vector3 targetPos = camPos + fwd * distanceFromCamera;
                 targetPos.y = camPos.y + verticalOffset;
                 Quaternion targetRot = Quaternion.LookRotation(fwd, Vector3.up);
@@ -1149,7 +1199,7 @@ namespace EyeTracking.Calibration.UI
                 canvas.transform.position = targetPos;
                 canvas.transform.rotation = targetRot;
 
-                Debug.Log($"[CalibrationUI] UI positioned in world space at: {targetPos} (yaw-only, head-tilt independent)");
+                Debug.Log($"[CalibrationUI] UI positioned in world space at: {targetPos} (anchor={(roomAnchored ? "room-frame" : "camera-yaw")})");
             }
 
             isPositioned = true;

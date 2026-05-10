@@ -1072,9 +1072,20 @@ MonoBehaviour:
     staticObjectCount: 12
     dynamicObjectCount: 4
   visualSearchConfig:
-    trialCount: 3
-    distractorCount: 15
-    maxTrialDuration: 15
+    trialCount: 5
+    distractorCount: 24
+    trials:
+    - condition: 0
+      distractorCount: 8
+    - condition: 2
+      distractorCount: 12
+    - condition: 1
+      distractorCount: 16
+    - condition: 2
+      distractorCount: 20
+    - condition: 2
+      distractorCount: 28
+    maxTrialDuration: 20
     targetAcquisitionTime: 1.5
     minDepth: 2
     maxDepth: 5

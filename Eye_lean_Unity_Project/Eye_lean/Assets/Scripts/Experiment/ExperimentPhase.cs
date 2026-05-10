@@ -122,16 +122,48 @@ namespace EyeLean.Experiment
     }
 
     /// <summary>
+    /// Visual-search difficulty modes (Treisman & Gelade 1980).
+    /// ColorPopOut and ShapePopOut are pre-attentive single-feature searches
+    /// (target detected in O(1) regardless of set size). Conjunction is
+    /// serial — distractors split between the two feature-distractor types
+    /// so the target's color+shape combination is unique.
+    /// </summary>
+    public enum VisualSearchCondition
+    {
+        ColorPopOut,
+        ShapePopOut,
+        Conjunction,
+    }
+
+    /// <summary>
+    /// Per-trial visual-search difficulty spec. A schedule of these makes
+    /// each trial vary in condition and set size (researcher-tunable in
+    /// the Inspector).
+    /// </summary>
+    [Serializable]
+    public struct VisualSearchTrialSpec
+    {
+        [Tooltip("Search condition for this trial")]
+        public VisualSearchCondition condition;
+
+        [Tooltip("Number of distractors on this trial")]
+        public int distractorCount;
+    }
+
+    /// <summary>
     /// Configuration for the visual search phase.
     /// </summary>
     [Serializable]
     public struct VisualSearchConfig
     {
-        [Tooltip("Number of search trials")]
+        [Tooltip("Number of search trials. Ignored if 'trials' below is non-empty (the schedule's length wins).")]
         public int trialCount;
 
-        [Tooltip("Number of distractor objects per trial")]
+        [Tooltip("Number of distractor objects per trial. Used as a fallback when no per-trial schedule is set.")]
         public int distractorCount;
+
+        [Tooltip("Per-trial difficulty schedule. When non-empty, drives both trial count and per-trial condition + set size. Empty = uniform conjunction trials at distractorCount.")]
+        public VisualSearchTrialSpec[] trials;
 
         [Tooltip("Maximum time per trial (seconds)")]
         public float maxTrialDuration;
@@ -150,9 +182,24 @@ namespace EyeLean.Experiment
 
         public static VisualSearchConfig Default => new VisualSearchConfig
         {
-            trialCount = 3,
-            distractorCount = 15,
-            maxTrialDuration = 15.0f,
+            trialCount = 5,
+            // Conjunction search is serial — set size 24 keeps the slope
+            // measurable (~50 ms/item on hardware) without exceeding the
+            // 20 s per-trial budget.
+            distractorCount = 24,
+            // Mixed schedule: easy pop-outs interleaved with conjunction
+            // trials of growing set size. Pop-outs give the participant
+            // quick wins to stay engaged; the conjunction set-size sweep
+            // is the meaningful psychometric data.
+            trials = new VisualSearchTrialSpec[]
+            {
+                new VisualSearchTrialSpec { condition = VisualSearchCondition.ColorPopOut, distractorCount = 8 },
+                new VisualSearchTrialSpec { condition = VisualSearchCondition.Conjunction, distractorCount = 12 },
+                new VisualSearchTrialSpec { condition = VisualSearchCondition.ShapePopOut, distractorCount = 16 },
+                new VisualSearchTrialSpec { condition = VisualSearchCondition.Conjunction, distractorCount = 20 },
+                new VisualSearchTrialSpec { condition = VisualSearchCondition.Conjunction, distractorCount = 28 },
+            },
+            maxTrialDuration = 20.0f,
             targetAcquisitionTime = 1.5f,
             minDepth = 2.0f,
             maxDepth = 5.0f,
@@ -315,6 +362,8 @@ namespace EyeLean.Experiment
         public bool targetFound;
         public float searchTimeSeconds;
         public Vector3 targetPosition;
+        public VisualSearchCondition condition;
+        public int distractorCount;
     }
 
     /// <summary>

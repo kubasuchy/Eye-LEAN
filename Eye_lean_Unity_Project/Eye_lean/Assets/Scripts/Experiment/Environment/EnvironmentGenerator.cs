@@ -185,11 +185,16 @@ public class EnvironmentGenerator : MonoBehaviour, EyeTracking.Core.IRoomFramePr
     }
 
     /// <summary>
-    /// Capture the user's position and facing direction at app start; the
-    /// room is generated around this position. Yaw is derived from
-    /// atan2(forward.x, forward.z) on the XZ-projected forward vector — head-
-    /// tilt independent. Reading eulerAngles.y instead would gimbal-flip when
-    /// the head is pitched or rolled at startup and rotate the entire room.
+    /// Capture the user's spawn XZ so the room is generated around their
+    /// current standing position. Yaw is intentionally NOT captured from the
+    /// camera on the live path: any head turn or tilt at scene-load would
+    /// otherwise rotate the entire room, skewing every wall-parallel
+    /// surface (UI panels, answer rows, task spawn axes). Room rotation is
+    /// fixed to world axes so panels stay parallel to the walls regardless
+    /// of where the participant happens to be looking when the scene loads.
+    ///
+    /// The replay path (overrideUserSpawn) still honors a recorded yaw so
+    /// older recordings reproduce bit-for-bit.
     /// </summary>
     private void CaptureUserSpawnPosition()
     {
@@ -203,33 +208,19 @@ public class EnvironmentGenerator : MonoBehaviour, EyeTracking.Core.IRoomFramePr
         Camera mainCamera = Camera.main;
         if (mainCamera != null && mainCamera.transform.position.sqrMagnitude > 0.01f)
         {
-            // Floor-level XZ.
+            // Floor-level XZ — room translates to the participant.
             userSpawnPosition = new Vector3(
                 mainCamera.transform.position.x,
                 0f,
                 mainCamera.transform.position.z
             );
 
-            // Robust yaw: project forward to XZ plane and take atan2.
-            // Independent of head pitch/roll, so a tilted head at startup
-            // doesn't skew the room. atan2 returns radians; convert to deg.
-            // If forward is nearly straight up/down (degenerate; user looking
-            // at the floor or ceiling), fall back to 0° yaw rather than
-            // producing NaN.
-            Vector3 fwd = mainCamera.transform.forward;
-            fwd.y = 0f;
-            if (fwd.sqrMagnitude < 1e-4f)
-            {
-                userSpawnYaw = 0f;
-                Debug.LogWarning("[EnvironmentGenerator] Camera looking nearly straight up/down at spawn; defaulting yaw to 0°.");
-            }
-            else
-            {
-                fwd.Normalize();
-                userSpawnYaw = Mathf.Atan2(fwd.x, fwd.z) * Mathf.Rad2Deg;
-            }
+            // Yaw forced to 0 on the live path. The room (and everything
+            // anchored to it) is world-axis-aligned regardless of head
+            // heading at scene-load.
+            userSpawnYaw = 0f;
 
-            Debug.Log($"[EnvironmentGenerator] Captured user spawn: position={userSpawnPosition}, yaw={userSpawnYaw:F2}° (head-tilt-independent)");
+            Debug.Log($"[EnvironmentGenerator] Captured user spawn: position={userSpawnPosition}, yaw=0° (live-path: room is world-axis-aligned)");
         }
         else
         {

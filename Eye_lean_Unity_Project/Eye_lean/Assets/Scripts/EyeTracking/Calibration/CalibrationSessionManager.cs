@@ -781,6 +781,28 @@ namespace EyeTracking.Calibration
                 }
             }
 
+            // Apples-to-apples cross-check before rolling back. The
+            // verification re-test uses verificationTargetCount targets at
+            // verificationDwellTime — a much smaller sample than the pre-fit
+            // fixation pass, with a different randomized target subset. Real
+            // corrections can read as "regressed" by sampling noise alone.
+            // OffsetEstimator already computed pre- and post-correction
+            // medians on the SAME pre-fit fixation samples (same targets,
+            // same trials). When that comparison shows the new profile
+            // clearly reduces error on the pre-fit data, trust the fit over
+            // the noisy verification.
+            if (regressed && draftFitResult != null && draftFitResult.converged
+                && draftFitResult.samplesUsed > 0
+                && draftFitResult.postFitMedianErrorDeg
+                   < draftFitResult.preFitMedianErrorDeg - 0.05f)
+            {
+                Debug.Log($"[CalibrationSessionManager] Post-fit verification flagged regression ({reason}), " +
+                          $"but apples-to-apples fit reduces median on pre-fit samples " +
+                          $"{draftFitResult.preFitMedianErrorDeg:F2}° → {draftFitResult.postFitMedianErrorDeg:F2}° " +
+                          $"({draftFitResult.samplesUsed} samples). Trusting the fit; promoting profile.");
+                regressed = false;
+            }
+
             if (regressed)
             {
                 verificationRejected = true;

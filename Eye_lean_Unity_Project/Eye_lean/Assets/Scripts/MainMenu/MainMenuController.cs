@@ -73,7 +73,7 @@ namespace EyeLean.MainMenu
             // own Start. Defer the status read until VRReadinessService
             // confirms the camera is tracking. Show a placeholder
             // synchronously so the panel isn't blank during the wait.
-            string title = "Eye_lean";
+            string title = "Eye-LEAN";
             worldUI.ShowInstructions(title, BuildStatusBody(false, null) + "\n\nDetecting eye tracker...");
             worldUI.ShowButtons(showStart: true, showNext: true);
             StartCoroutine(RefreshStatusWhenTrackerReady(title));

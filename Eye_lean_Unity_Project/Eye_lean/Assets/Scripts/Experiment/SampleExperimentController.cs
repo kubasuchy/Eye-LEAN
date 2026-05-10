@@ -370,6 +370,64 @@ namespace EyeLean.Experiment
             }
         }
 
+        // Cached IRoomFrameProvider so task spawns don't FindObjectsByType
+        // every call. Resolved lazily in ResolveTaskAnchor.
+        private Transform cachedTaskRoomFrame;
+
+        /// <summary>
+        /// Resolve a stable task-spawn anchor: prefer the room frame so
+        /// in-room placement is wall-parallel and head-heading-independent;
+        /// fall back to camera pose only when no <see cref="EyeTracking.Core.IRoomFrameProvider"/>
+        /// is in scene (smoke tests / researcher scenes without an
+        /// EnvironmentGenerator). Returns true when an anchor was resolved.
+        /// Eye-height Y comes from the camera regardless — the room frame
+        /// origin is at the floor, and the participant's height is the only
+        /// camera-derived value worth keeping for spawn placement.
+        /// </summary>
+        private bool ResolveTaskAnchor(out Vector3 origin, out Vector3 forward, out float eyeHeight)
+        {
+            eyeHeight = cameraTransform != null ? cameraTransform.position.y : 1.6f;
+
+            if (cachedTaskRoomFrame == null || !cachedTaskRoomFrame)
+            {
+                var providers = FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None);
+                for (int i = 0; i < providers.Length; i++)
+                {
+                    if (providers[i] is EyeTracking.Core.IRoomFrameProvider rfp && rfp.RoomTransform != null)
+                    {
+                        cachedTaskRoomFrame = rfp.RoomTransform;
+                        break;
+                    }
+                }
+            }
+
+            if (cachedTaskRoomFrame != null && cachedTaskRoomFrame)
+            {
+                origin = cachedTaskRoomFrame.position;
+                Vector3 roomForward = cachedTaskRoomFrame.forward;
+                roomForward.y = 0f;
+                forward = roomForward.sqrMagnitude > 0.01f
+                    ? roomForward.normalized
+                    : Vector3.forward;
+                return true;
+            }
+
+            if (cameraTransform != null)
+            {
+                origin = cameraTransform.position;
+                Vector3 camForward = cameraTransform.forward;
+                camForward.y = 0f;
+                forward = camForward.sqrMagnitude > 0.01f
+                    ? camForward.normalized
+                    : Vector3.forward;
+                return true;
+            }
+
+            origin = Vector3.zero;
+            forward = Vector3.forward;
+            return false;
+        }
+
         /// <summary>
         /// Create the gaze-activated start target.
         /// </summary>
@@ -377,18 +435,15 @@ namespace EyeLean.Experiment
         {
             if (startTarget != null) return;
 
-            // Position in front of camera
-            Vector3 position = Vector3.zero;
-            if (cameraTransform != null)
-            {
-                position = cameraTransform.position + cameraTransform.forward * startTargetDistance;
-                Debug.Log($"[Experiment] Camera found at {cameraTransform.position}, forward: {cameraTransform.forward}");
-            }
-            else
-            {
-                position = new Vector3(0, 1.6f, startTargetDistance);
-                Debug.LogWarning("[Experiment] No camera transform! Using default position.");
-            }
+            // Anchor to the room frame so the start target sits at a fixed
+            // world location regardless of where the head was pointing when
+            // the scene loaded. Y from latched eye height.
+            Vector3 anchorOrigin, anchorForward;
+            float eyeHeight;
+            ResolveTaskAnchor(out anchorOrigin, out anchorForward, out eyeHeight);
+            Vector3 position = anchorOrigin + anchorForward * startTargetDistance;
+            position.y = eyeHeight;
+            Debug.Log($"[Experiment] StartTarget anchored at {position} (forward {anchorForward}, eyeHeight {eyeHeight:F2})");
 
             // Create sphere
             startTarget = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -1079,21 +1134,33 @@ namespace EyeLean.Experiment
 
             visualSearchManager.Configure(visualSearchConfig);
 
-            for (int trial = 0; trial < visualSearchConfig.trialCount; trial++)
+            int trialCount = visualSearchManager.EffectiveTrialCount;
+            for (int trial = 0; trial < trialCount; trial++)
             {
+                var trialSpec = visualSearchManager.GetTrialSpec(trial);
+
                 // Update sub-task to identify which trial we're on
                 if (eyeTracker != null)
                 {
                     sessionRecorder.SetSubTask($"trial_{trial + 1}");
 
-                    // Record trial-level metadata for visual search
+                    // Record trial-level metadata for visual search.
+                    // SearchCondition + per-trial DistractorCount let
+                    // analysis split RTs by difficulty without joining
+                    // the JSON results.
                     sessionRecorder.SetMetadata("SearchTrialNumber", trial + 1);
-                    sessionRecorder.SetMetadata("DistractorCount", visualSearchConfig.distractorCount);
+                    sessionRecorder.SetMetadata("SearchCondition", trialSpec.condition.ToString());
+                    sessionRecorder.SetMetadata("DistractorCount", trialSpec.distractorCount);
                     sessionRecorder.SetMetadata("TargetFound", false);  // Updated when found
                 }
 
                 // Run trial
-                var result = new VisualSearchResult { trialNumber = trial + 1 };
+                var result = new VisualSearchResult
+                {
+                    trialNumber = trial + 1,
+                    condition = trialSpec.condition,
+                    distractorCount = trialSpec.distractorCount,
+                };
                 yield return visualSearchManager.RunTrial(trial, (found, time, pos) =>
                 {
                     result.targetFound = found;
@@ -1145,23 +1212,15 @@ namespace EyeLean.Experiment
             dynamicTarget.speed = pursuitConfig.speed;
             dynamicTarget.radius = pursuitConfig.horizontalRadius;
 
-            // Position center relative to camera
-            float eyeHeight = cameraTransform != null ? cameraTransform.position.y : 1.6f;
-            Vector3 center;
-            if (cameraTransform != null)
-            {
-                Vector3 cameraForward = cameraTransform.forward;
-                cameraForward.y = 0;
-                // Check magnitude BEFORE normalizing (after normalize it's always 1)
-                if (cameraForward.sqrMagnitude < 0.01f) cameraForward = Vector3.forward;
-                else cameraForward.Normalize();
-                center = cameraTransform.position + cameraForward * pursuitConfig.distance;
-                center.y = eyeHeight;
-            }
-            else
-            {
-                center = new Vector3(0, eyeHeight, pursuitConfig.distance);
-            }
+            // Anchor pursuit motion center to the room frame so the figure-8
+            // sits at a fixed world location (head heading at scene-load no
+            // longer leaks into pursuit-target placement). Y from latched
+            // eye height so the target is at the participant's eye level.
+            Vector3 pursuitOrigin, pursuitForward;
+            float eyeHeight;
+            ResolveTaskAnchor(out pursuitOrigin, out pursuitForward, out eyeHeight);
+            Vector3 center = pursuitOrigin + pursuitForward * pursuitConfig.distance;
+            center.y = eyeHeight;
             pursuitTarget.transform.position = center;
             dynamicTarget.SetCenter(center);
 
@@ -1277,22 +1336,14 @@ namespace EyeLean.Experiment
                 // Create answer UI
                 var countingAnswerUI = gameObject.AddComponent<CountingAnswerUI>();
 
-                // Position answer options in front of camera
-                Vector3 answerPosition;
-                if (cameraTransform != null)
-                {
-                    Vector3 forward = cameraTransform.forward;
-                    forward.y = 0;
-                    // Check magnitude BEFORE normalizing (after normalize it's always 1)
-                    if (forward.sqrMagnitude < 0.01f) forward = Vector3.forward;
-                    else forward.Normalize();
-                    answerPosition = cameraTransform.position + forward * 2.5f;
-                    answerPosition.y = cameraTransform.position.y;
-                }
-                else
-                {
-                    answerPosition = new Vector3(0, 1.6f, 2.5f);
-                }
+                // Anchor the answer-spheres row to the room frame so it
+                // appears at the same world position across every trial in
+                // a session, with the row axis parallel to the back wall.
+                Vector3 answerOrigin, answerForward;
+                float answerEyeHeight;
+                ResolveTaskAnchor(out answerOrigin, out answerForward, out answerEyeHeight);
+                Vector3 answerPosition = answerOrigin + answerForward * 2.5f;
+                answerPosition.y = answerEyeHeight;
 
                 bool answered = false;
 

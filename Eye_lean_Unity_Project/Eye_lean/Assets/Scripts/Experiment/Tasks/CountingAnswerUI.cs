@@ -21,6 +21,37 @@ namespace EyeLean.Experiment
         private bool answerSelected = false;
         private Action<int, float> onAnswerSelected;
         private float startTime;
+        private Transform cachedRoomFrame;
+
+        /// <summary>
+        /// Horizontal layout axis for the row of answer spheres. Resolved
+        /// from the active <see cref="EyeTracking.Core.IRoomFrameProvider"/>
+        /// (cached after first lookup); falls back to world right when no
+        /// provider is in scene. Independent of head heading by design — the
+        /// row should sit parallel to the back wall, identical across trials.
+        /// </summary>
+        private Vector3 ResolveHorizontalRight()
+        {
+            if (cachedRoomFrame == null || !cachedRoomFrame)
+            {
+                var providers = FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None);
+                for (int i = 0; i < providers.Length; i++)
+                {
+                    if (providers[i] is EyeTracking.Core.IRoomFrameProvider rfp && rfp.RoomTransform != null)
+                    {
+                        cachedRoomFrame = rfp.RoomTransform;
+                        break;
+                    }
+                }
+            }
+            if (cachedRoomFrame != null && cachedRoomFrame)
+            {
+                Vector3 r = cachedRoomFrame.right;
+                r.y = 0f;
+                if (r.sqrMagnitude > 1e-4f) return r.normalized;
+            }
+            return Vector3.right;
+        }
 
         /// <summary>
         /// Show answer options centered around expected count.
@@ -56,9 +87,12 @@ namespace EyeLean.Experiment
             float totalWidth = (optionCount - 1) * optionSpacing;
             float startX = -totalWidth / 2f;
 
-            // Get camera for positioning
-            var cam = Camera.main;
-            Vector3 right = cam != null ? cam.transform.right : Vector3.right;
+            // Lay options along the room's right axis. The room frame is
+            // world-axis-aligned (EnvironmentGenerator forces yaw=0 on the
+            // live path), so the row is parallel to the back wall and
+            // consistent across every trial in a session. Falls back to
+            // world right when no IRoomFrameProvider is in scene.
+            Vector3 right = ResolveHorizontalRight();
 
             for (int i = 0; i < optionCount; i++)
             {

@@ -137,6 +137,35 @@ namespace EyeLean.Experiment
             onComplete?.Invoke(targetFound, searchTime, targetPos);
         }
 
+        /// <summary>
+        /// Resolve the difficulty spec for the given trial. Uses the
+        /// per-trial schedule when populated; otherwise falls back to
+        /// uniform conjunction search at the global distractorCount so
+        /// existing scenes without a schedule still work.
+        /// </summary>
+        public VisualSearchTrialSpec GetTrialSpec(int trialIndex)
+        {
+            if (config.trials != null && config.trials.Length > 0)
+            {
+                int idx = Mathf.Clamp(trialIndex, 0, config.trials.Length - 1);
+                return config.trials[idx];
+            }
+            return new VisualSearchTrialSpec
+            {
+                condition = VisualSearchCondition.Conjunction,
+                distractorCount = config.distractorCount,
+            };
+        }
+
+        /// <summary>
+        /// Effective number of trials for the configured schedule. Length
+        /// of the per-trial array when set; otherwise the global trialCount.
+        /// </summary>
+        public int EffectiveTrialCount =>
+            (config.trials != null && config.trials.Length > 0)
+                ? config.trials.Length
+                : config.trialCount;
+
         private void GenerateSearchScene(int trialIndex)
         {
             // Use trial index as seed for reproducibility
@@ -145,19 +174,51 @@ namespace EyeLean.Experiment
             float eyeHeight = cameraTransform != null ? cameraTransform.position.y : 1.6f;
             List<Vector3> usedPositions = new List<Vector3>();
 
-            // Generate distractors first
-            for (int i = 0; i < config.distractorCount; i++)
+            VisualSearchTrialSpec spec = GetTrialSpec(trialIndex);
+            int distractorCount = Mathf.Max(0, spec.distractorCount);
+
+            // Distractor composition by condition (Treisman & Gelade 1980):
+            //   ColorPopOut   — all distractors share target shape (spheres)
+            //                   in distractor color; target color is unique
+            //                   → pre-attentive, O(1) detection.
+            //   ShapePopOut   — all distractors share target color (red)
+            //                   in cube shape; target shape is unique
+            //                   → pre-attentive, O(1) detection.
+            //   Conjunction   — half color-distractors (spheres in distractor
+            //                   color), half shape-distractors (cubes in
+            //                   target color). Target's color+shape pair is
+            //                   unique → serial search with measurable slope.
+            int colorDistractorCount;
+            switch (spec.condition)
+            {
+                case VisualSearchCondition.ColorPopOut:
+                    colorDistractorCount = distractorCount;
+                    break;
+                case VisualSearchCondition.ShapePopOut:
+                    colorDistractorCount = 0;
+                    break;
+                case VisualSearchCondition.Conjunction:
+                default:
+                    colorDistractorCount = distractorCount / 2;
+                    break;
+            }
+
+            for (int i = 0; i < distractorCount; i++)
             {
                 Vector3 pos = GetRandomPosition(eyeHeight, usedPositions);
                 usedPositions.Add(pos);
 
-                var distractor = CreateSearchObject(pos, distractorColor, $"Distractor_{i}");
+                bool isColorDistractor = i < colorDistractorCount;
+                Color color = isColorDistractor ? distractorColor : targetColor;
+                PrimitiveType shape = isColorDistractor ? PrimitiveType.Sphere : PrimitiveType.Cube;
+                var distractor = CreateSearchObject(pos, color, $"Distractor_{i}", shape);
                 searchObjects.Add(distractor);
             }
 
-            // Generate target
+            // Target is always the red sphere — the only red+sphere object
+            // regardless of condition.
             Vector3 targetPos = GetRandomPosition(eyeHeight, usedPositions);
-            targetObject = CreateSearchObject(targetPos, targetColor, "SearchTarget");
+            targetObject = CreateSearchObject(targetPos, targetColor, "SearchTarget", PrimitiveType.Sphere);
             targetGazeComponent = targetObject.GetComponent<GazeTarget>();
             targetRenderer = targetObject.GetComponent<Renderer>();
             targetOriginalScale = targetObject.transform.localScale;
@@ -226,9 +287,9 @@ namespace EyeLean.Experiment
             return new Vector3(0, Mathf.Clamp(eyeHeight, minY, maxY), fallbackDepth);
         }
 
-        private GameObject CreateSearchObject(Vector3 position, Color color, string name)
+        private GameObject CreateSearchObject(Vector3 position, Color color, string name, PrimitiveType primitiveType = PrimitiveType.Sphere)
         {
-            var obj = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            var obj = GameObject.CreatePrimitive(primitiveType);
             obj.name = name;
             // Opt into the scene-state sidecar via the "Recordable" tag.
             try { obj.tag = "Recordable"; } catch (UnityException) { /* tag not defined */ }
