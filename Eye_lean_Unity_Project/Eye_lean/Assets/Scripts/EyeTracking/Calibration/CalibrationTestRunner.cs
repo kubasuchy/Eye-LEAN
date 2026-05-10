@@ -30,6 +30,13 @@ namespace EyeTracking.Calibration
         // Ground truth samples collected during test
         protected List<GroundTruthSample> samples = new List<GroundTruthSample>();
 
+        // I-VT fixation gate threshold (degrees/second). Samples whose
+        // inter-sample angular gaze velocity exceeds this are saccades or
+        // microsaccade bursts and are excluded from settled-fixation
+        // aggregation. 30°/s is the conventional saccade threshold; settled
+        // fixations run far below it.
+        public const float FixationVelocityCapDegPerSec = 30f;
+
         // Test state
         protected bool isRunning = false;
         protected float testStartTime;
@@ -184,7 +191,18 @@ namespace EyeTracking.Calibration
             lastTargetSampledPosition = newTarget != null ? newTarget.transform.position : Vector3.zero;
             lastTargetSampledTime = Time.time;
             lastTargetVelocity = Vector3.zero;
+            // Reset per-target gaze-velocity tracking so the first sample on
+            // a new target reads velocity = 0 instead of a huge value
+            // representing the saccade from the previous target's location.
+            lastGazeDirection = Vector3.zero;
+            lastGazeSampleTime = 0f;
         }
+
+        // Tracking state for per-sample gaze angular velocity (R8 I-VT gate).
+        // Reset by MarkTargetOnset so saccades between targets aren't
+        // counted as in-fixation velocity.
+        private Vector3 lastGazeDirection = Vector3.zero;
+        private float lastGazeSampleTime = 0f;
 
         /// <summary>
         /// Record a ground truth sample for the given target.
@@ -209,7 +227,8 @@ namespace EyeTracking.Calibration
 
             // Get current gaze data
             Vector3 gazeOrigin, gazeDirection;
-            bool hasValidGaze = GetCurrentGazeData(out gazeOrigin, out gazeDirection);
+            GazeSource gazeSource;
+            bool hasValidGaze = GetCurrentGazeData(out gazeOrigin, out gazeDirection, out gazeSource);
 
             if (!hasValidGaze)
             {
@@ -218,9 +237,14 @@ namespace EyeTracking.Calibration
                 return;
             }
 
-            // Calculate intended gaze direction
+            // Calculate intended gaze direction. Anchored at the eye-tracker-
+            // reported gaze origin (not cameraTransform.position) so that the
+            // stored intendedGazeDirection is consistent with how gazeError is
+            // computed downstream (CalculateGazeError also uses gazeOrigin)
+            // and with how OffsetEstimator recomputes residuals from
+            // (s.targetPosition - s.actualGazeOrigin) at fit time.
             Vector3 targetPosition = target.transform.position;
-            Vector3 intendedDirection = (targetPosition - cameraTransform.position).normalized;
+            Vector3 intendedDirection = (targetPosition - gazeOrigin).normalized;
 
             // Calculate surface intersection
             Vector3 surfacePoint = targetPosition;
@@ -294,6 +318,23 @@ namespace EyeTracking.Calibration
             lastTargetSampledTime = now;
             lastTargetVelocity = velocity;
 
+            // Inter-sample angular gaze velocity (degrees/second). Used by
+            // the I-VT fixation gate downstream. First sample on a target
+            // (lastGazeDirection unset by MarkTargetOnset) reads 0.
+            float gazeVelocityDegPerSec = 0f;
+            if (lastGazeDirection.sqrMagnitude > 1e-6f && lastGazeSampleTime > 0f)
+            {
+                float gdt = now - lastGazeSampleTime;
+                if (gdt > 1e-4f)
+                {
+                    float dot = Vector3.Dot(gazeDirection.normalized, lastGazeDirection.normalized);
+                    float angleDeg = Mathf.Acos(Mathf.Clamp(dot, -1f, 1f)) * Mathf.Rad2Deg;
+                    gazeVelocityDegPerSec = angleDeg / gdt;
+                }
+            }
+            lastGazeDirection = gazeDirection;
+            lastGazeSampleTime = now;
+
             // Create sample
             GroundTruthSample sample = new GroundTruthSample
             {
@@ -313,19 +354,24 @@ namespace EyeTracking.Calibration
                 isValidByAngularError = validByAngularError,
                 hasSurfaceIntersection = hasSurfaceHit,
                 targetSettleSeconds = settleSeconds,
-                targetVelocity = velocity
+                targetVelocity = velocity,
+                gazeSource = gazeSource,
+                gazeAngularVelocityDegPerSec = gazeVelocityDegPerSec
             };
 
             samples.Add(sample);
         }
 
         /// <summary>
-        /// Get current gaze data from eye tracker.
+        /// Get current gaze data from eye tracker. Reports which path
+        /// produced the data so downstream filters can reject mid-test
+        /// source switches.
         /// </summary>
-        protected bool GetCurrentGazeData(out Vector3 origin, out Vector3 direction)
+        protected bool GetCurrentGazeData(out Vector3 origin, out Vector3 direction, out GazeSource source)
         {
             origin = Vector3.zero;
             direction = Vector3.forward;
+            source = GazeSource.Unknown;
 
             // Try to get a working eye tracker if current one isn't available
             if (eyeTracker == null || !eyeTracker.IsAvailable)
@@ -344,7 +390,11 @@ namespace EyeTracking.Calibration
             bool hasOrigin = eyeTracker.GetCombinedGazeOrigin(out origin);
             bool hasDirection = eyeTracker.GetCombinedGazeDirection(out direction);
 
-            if (hasOrigin && hasDirection) return true;
+            if (hasOrigin && hasDirection)
+            {
+                source = GazeSource.Combined;
+                return true;
+            }
 
             // Fall back to individual eyes
             Vector3 leftOrigin, rightOrigin;
@@ -357,6 +407,7 @@ namespace EyeTracking.Calibration
             {
                 origin = (leftOrigin + rightOrigin) * 0.5f;
                 direction = ((leftDir + rightDir) * 0.5f).normalized;
+                source = GazeSource.BinocularAverage;
                 return true;
             }
 
@@ -364,6 +415,7 @@ namespace EyeTracking.Calibration
             {
                 origin = leftOrigin;
                 direction = leftDir;
+                source = GazeSource.LeftMonocular;
                 return true;
             }
 
@@ -371,6 +423,7 @@ namespace EyeTracking.Calibration
             {
                 origin = rightOrigin;
                 direction = rightDir;
+                source = GazeSource.RightMonocular;
                 return true;
             }
 
@@ -600,17 +653,66 @@ namespace EyeTracking.Calibration
 
             results.fixationTotalSampleCount = samples.Count;
 
+            // Settled samples (target has been on long enough that the saccade
+            // to it has completed). Outlier rejection is applied after
+            // settling but before headline-stat computation, mirroring the
+            // policy OffsetEstimator already uses on its training data — a
+            // verification re-test that retains catastrophic outliers (blinks,
+            // off-target glances) while the fit drops them is structurally
+            // unfair to the new profile.
+            //
+            // Velocity gate (I-VT, Salvucci & Goldberg 2000): drop samples
+            // whose inter-sample angular gaze velocity > FixationVelocityCapDegPerSec.
+            // 30°/s is a standard saccade threshold; settled fixation should
+            // run well under this. This catches microsaccade bursts and
+            // post-blink recoveries that the per-target settle filter alone
+            // does not exclude.
             var settled = new List<float>(samples.Count);
-            int settledPass = 0;
             foreach (var s in samples)
             {
                 if (s.targetSettleSeconds < settleThreshold) continue;
+                if (s.gazeAngularVelocityDegPerSec > FixationVelocityCapDegPerSec) continue;
                 settled.Add(s.gazeError);
-                if (s.gazeError < angularThreshold) settledPass++;
+            }
+
+            // Hard ceiling matching OffsetEstimator.Options.maxResidualDeg
+            // (30°): anything past this is mechanically impossible for a
+            // settled fixation and must be a tracking dropout.
+            settled.RemoveAll(e => e > 30f);
+
+            // Iterative one-sided MAD filter for moderate outliers. Asymmetric
+            // because gazeError is bounded below at 0 — only the upper tail
+            // contains the catastrophic-blink / off-target samples we want
+            // to drop. Threshold 3 × 1.4826 × MAD ≈ 3σ for normal data
+            // (Holmqvist et al. 2011, eye-tracking methodology).
+            if (settled.Count >= 10)
+            {
+                var working = new List<float>(settled);
+                for (int iter = 0; iter < 3; iter++)
+                {
+                    working.Sort();
+                    float median = working[working.Count / 2];
+                    var deviations = new List<float>(working.Count);
+                    foreach (float e in working) deviations.Add(Mathf.Abs(e - median));
+                    deviations.Sort();
+                    float mad = deviations[deviations.Count / 2];
+                    if (mad <= 1e-4f) break;
+                    float upperCutoff = median + 3f * 1.4826f * mad;
+                    int before = working.Count;
+                    working.RemoveAll(e => e > upperCutoff);
+                    if (working.Count == before) break;
+                }
+                settled = working;
             }
 
             results.fixationSettledSampleCount = settled.Count;
             if (settled.Count == 0) return;
+
+            int settledPass = 0;
+            foreach (float e in settled)
+            {
+                if (e < angularThreshold) settledPass++;
+            }
 
             settled.Sort();
             results.fixationMedianErrorDeg = settled[settled.Count / 2];

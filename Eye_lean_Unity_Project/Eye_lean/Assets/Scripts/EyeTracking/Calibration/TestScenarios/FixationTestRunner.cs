@@ -24,6 +24,16 @@ namespace EyeTracking.Calibration
 
         public override CalibrationTestType TestType => CalibrationTestType.Fixation;
 
+        // When non-null, CalculateTargetPositions returns predefinedPositions[i]
+        // for each i in this array instead of the leading [0..count-1] slice.
+        // Used by post-fit verification to sample a stratified subset that
+        // covers the same eccentricity range the fit was trained on, instead
+        // of the four near-axis targets the leading slice happens to contain.
+        private int[] targetIndexOverride;
+
+        public void SetTargetIndexOverride(int[] indices) => targetIndexOverride = indices;
+        public void ClearTargetIndexOverride() => targetIndexOverride = null;
+
         /// <summary>
         /// Current target index (for UI display).
         /// </summary>
@@ -83,10 +93,32 @@ namespace EyeTracking.Calibration
                 yield return new WaitForSeconds(0.3f);
             }
 
+            // Per-target settled-sample breakdown — surfaces uneven
+            // sampling (a target the participant blinked through, or one
+            // that was clipped by an early test abort) before the
+            // aggregator collapses everything into a single median.
+            float settleThreshold = settings != null ? settings.fixationSettleSeconds : 0.5f;
+            var perTargetSettled = new Dictionary<string, int>();
+            var perTargetTotal = new Dictionary<string, int>();
+            foreach (var s in samples)
+            {
+                if (!perTargetTotal.ContainsKey(s.targetID))
+                {
+                    perTargetTotal[s.targetID] = 0;
+                    perTargetSettled[s.targetID] = 0;
+                }
+                perTargetTotal[s.targetID]++;
+                if (s.targetSettleSeconds >= settleThreshold) perTargetSettled[s.targetID]++;
+            }
+
             // Test complete - RaiseTestCompleted handles cleanup and isRunning
             RaiseTestCompleted();
 
             Debug.Log($"[FixationTest] Completed. Collected {samples.Count} samples across {totalTargets} targets.");
+            foreach (var kv in perTargetTotal)
+            {
+                Debug.Log($"[FixationTest]   {kv.Key}: {perTargetSettled[kv.Key]} settled / {kv.Value} total");
+            }
         }
 
         protected override void CleanupTest()
@@ -161,12 +193,47 @@ namespace EyeTracking.Calibration
 
                 // Additional spread
                 new Vector3(0f, 1.3f, 5.5f),      // Center-low, very far
+
+                // Wide-eccentricity targets (≈ ±21° horizontal at 3.5 m).
+                // Past the comfortable-FOV horizontal spread above; only
+                // exercised when fixationTargetCount is bumped or when a
+                // gain-fit run requests them via index override. Provides
+                // the lever arm a yaw-gain fit needs.
+                new Vector3(-1.4f, 1.5f, 3.5f),   // Wide left
+                new Vector3(1.4f, 1.5f, 3.5f),    // Wide right
+                new Vector3(0f, 0.7f, 3.5f),      // Wide low
+                new Vector3(0f, 2.3f, 3.5f),      // Wide high
             };
 
-            // Use predefined positions up to target count
-            for (int i = 0; i < Mathf.Min(targetCount, predefinedPositions.Length); i++)
+            if (targetIndexOverride != null && targetIndexOverride.Length > 0)
             {
-                positions.Add(predefinedPositions[i]);
+                // Verification path: keep the override's deliberate
+                // stratified order; do not shuffle (the order encodes the
+                // eccentricity classes the fit was trained on).
+                foreach (int idx in targetIndexOverride)
+                {
+                    if (idx >= 0 && idx < predefinedPositions.Length)
+                        positions.Add(predefinedPositions[idx]);
+                }
+            }
+            else
+            {
+                int n = Mathf.Min(targetCount, predefinedPositions.Length);
+                for (int i = 0; i < n; i++)
+                {
+                    positions.Add(predefinedPositions[i]);
+                }
+                // Fisher-Yates shuffle to decorrelate target eccentricity
+                // from session timeline (otherwise the participant fatigues
+                // through a fixed ordering and anticipatory saccades bias
+                // late-trial samples). Uses UnityEngine.Random so the
+                // sequence is captured by Random.state and reproducible
+                // under the deterministic-replay system.
+                for (int i = positions.Count - 1; i > 0; i--)
+                {
+                    int j = Random.Range(0, i + 1);
+                    (positions[i], positions[j]) = (positions[j], positions[i]);
+                }
             }
 
             Debug.Log($"[FixationTest] Created {positions.Count} targets at FIXED ROOM coordinates (depths: 3.5-5.5m)");

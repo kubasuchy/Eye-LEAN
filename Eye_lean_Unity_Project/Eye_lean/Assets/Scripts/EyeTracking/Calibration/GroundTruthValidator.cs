@@ -146,7 +146,8 @@ namespace EyeTracking.Calibration
                            "IntendedDirX,IntendedDirY,IntendedDirZ," +
                            "GazeOriginX,GazeOriginY,GazeOriginZ," +
                            "GazeDirX,GazeDirY,GazeDirZ," +
-                           "GazeError,SurfaceError,IsFixating,IsValid,HasSurfaceHit";
+                           "GazeError,SurfaceError,IsFixating,IsValid,HasSurfaceHit," +
+                           "GazeSource,GazeAngularVelocityDegPerSec";
 
             fileWriter.WriteLine(header);
             fileWriter.Flush();
@@ -162,7 +163,8 @@ namespace EyeTracking.Calibration
                          $"{sample.intendedGazeDirection.x:F4},{sample.intendedGazeDirection.y:F4},{sample.intendedGazeDirection.z:F4}," +
                          $"{sample.actualGazeOrigin.x:F4},{sample.actualGazeOrigin.y:F4},{sample.actualGazeOrigin.z:F4}," +
                          $"{sample.actualGazeDirection.x:F4},{sample.actualGazeDirection.y:F4},{sample.actualGazeDirection.z:F4}," +
-                         $"{sample.gazeError:F4},{sample.surfaceError:F4},{sample.isFixating},{sample.isValid},{sample.hasSurfaceIntersection}";
+                         $"{sample.gazeError:F4},{sample.surfaceError:F4},{sample.isFixating},{sample.isValid},{sample.hasSurfaceIntersection}," +
+                         $"{sample.gazeSource},{sample.gazeAngularVelocityDegPerSec:F2}";
 
             fileWriter.WriteLine(line);
 

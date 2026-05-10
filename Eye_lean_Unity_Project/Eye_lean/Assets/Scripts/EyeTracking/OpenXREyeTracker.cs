@@ -284,43 +284,14 @@ namespace VRNavigation.Tracking
 
         #region Data Update Methods
 
-        /// <summary>
-        /// Update combined eye gaze from Unity Input System (XR_EXT_eye_gaze_interaction).
-        /// </summary>
-        private void UpdateCombinedGaze()
-        {
-            if (eyeGazeAction != null && eyeGazeAction.action.enabled)
-            {
-                try
-                {
-                    // PoseState (Unity 6+) exposes the isTracked flag.
-                    var gaze = eyeGazeAction.action.ReadValue<UnityEngine.InputSystem.XR.PoseState>();
-                    combinedGazePose = new Pose(gaze.position, gaze.rotation);
-                    combinedGazeValid = gaze.isTracked;
-
-                    if (debugLogging && Time.frameCount % 90 == 0) // Log once per second at 90fps
-                    {
-                        Debug.Log($"[OpenXREyeTracker] Combined gaze: pos={combinedGazePose.position}, rot={combinedGazePose.rotation.eulerAngles}, tracked={combinedGazeValid}");
-                    }
-                }
-                catch (System.Exception e)
-                {
-                    combinedGazeValid = false;
-                    if (Time.frameCount % 300 == 0)
-                    {
-                        Debug.LogWarning($"[OpenXREyeTracker] Failed to read combined gaze: {e.Message}");
-                    }
-                }
-            }
-            else
-            {
-                combinedGazeValid = false;
-                if (Time.frameCount % 300 == 0)
-                {
-                    Debug.LogWarning($"[OpenXREyeTracker] Eye gaze action is null or disabled - cannot read combined gaze");
-                }
-            }
-        }
+        // The Unity Input System combined-gaze path (XR_EXT_eye_gaze_interaction
+        // via UnityEngine.InputSystem.XR.PoseState) was removed: it returned
+        // poses in OpenXR action space without going through TrackingToWorld*,
+        // so on any rig with a non-identity XR Origin parent it would have
+        // produced gaze directions inconsistent with per-eye-derived data.
+        // Combined gaze is synthesized from the HTC per-eye Interop path in
+        // UpdatePerEyeData, which applies the tracking-to-world transform
+        // and the active profile correction symmetrically.
 
         /// <summary>
         /// Update per-eye data via XR_HTC_eye_tracker.Interop (gaze, pupil,

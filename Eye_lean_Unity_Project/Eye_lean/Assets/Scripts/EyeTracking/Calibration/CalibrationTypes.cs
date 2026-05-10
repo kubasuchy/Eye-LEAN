@@ -89,6 +89,22 @@ namespace EyeTracking.Calibration
     }
 
     /// <summary>
+    /// Which path produced a gaze sample. Lets the fit and verification
+    /// reject mid-test source switches (e.g., combined-gaze becoming
+    /// invalid for one frame and the runner falling through to a per-eye
+    /// average) that would otherwise mix data with different noise
+    /// characteristics into the same median.
+    /// </summary>
+    public enum GazeSource
+    {
+        Unknown = 0,
+        Combined = 1,
+        BinocularAverage = 2,
+        LeftMonocular = 3,
+        RightMonocular = 4
+    }
+
+    /// <summary>
     /// Ground truth data sample for accuracy validation.
     /// </summary>
     [System.Serializable]
@@ -154,6 +170,24 @@ namespace EyeTracking.Calibration
         /// pursuit. Used to compute pursuit gain.
         /// </summary>
         public Vector3 targetVelocity;
+
+        /// <summary>
+        /// Which gaze pipeline produced this sample (combined, per-eye
+        /// average, or monocular). Used downstream to filter out source
+        /// changes mid-fixation that would otherwise mix differently-noisy
+        /// signals into the same aggregate.
+        /// </summary>
+        public GazeSource gazeSource;
+
+        /// <summary>
+        /// Inter-sample angular gaze velocity (degrees/second) computed
+        /// from the previous sample on the same target. Used by the I-VT
+        /// fixation gate (Salvucci & Goldberg 2000): samples with velocity
+        /// above ~30°/s are saccades or microsaccade bursts, not settled
+        /// fixation, and inflate the median if included. Zero on the first
+        /// sample of each target window (no previous to differentiate from).
+        /// </summary>
+        public float gazeAngularVelocityDegPerSec;
     }
 
     /// <summary>
@@ -347,11 +381,11 @@ namespace EyeTracking.Calibration
         public float saccadeLandingFraction = 0.4f;
 
         [Header("Post-Fit Verification")]
-        [Tooltip("Number of fixation targets shown in the Verification phase that runs after the user saves a profile. Smaller than fixationTargetCount so the re-test stays brief.")]
-        public int verificationTargetCount = 4;
+        [Tooltip("Number of fixation targets shown in the Verification phase that runs after the user saves a profile. Smaller than fixationTargetCount so the re-test stays brief, but large enough that the median is statistically stable.")]
+        public int verificationTargetCount = 6;
 
-        [Tooltip("Dwell time per target during the Verification phase (seconds). Shorter than fixationDwellTime so the re-test stays brief.")]
-        public float verificationDwellTime = 1.2f;
+        [Tooltip("Dwell time per target during the Verification phase (seconds). Approaches fixationDwellTime so per-target settled-sample count is comparable; without this the pre-fit vs post-fit medians are computed at very different sample sizes.")]
+        public float verificationDwellTime = 1.5f;
 
         [Header("Target Distances")]
         [Tooltip("Base distance for targets from camera (meters)")]
