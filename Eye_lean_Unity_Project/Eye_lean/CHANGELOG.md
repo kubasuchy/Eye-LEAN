@@ -9,7 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-(no entries yet)
+- World-fixed scene placement: room, UI panels, and answer rows now sit parallel to the back wall regardless of head heading at scene-load.
+- Visual search: per-trial schedule interleaves color pop-out, shape pop-out, and conjunction trials over an 8 → 28 set-size sweep.
+- Calibration: post-fit verification trusts the same-sample fit residual when the small-sample re-test regresses by sampling noise.
 
 ---
 
