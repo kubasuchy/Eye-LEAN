@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - World-fixed scene placement: room, UI panels, and answer rows now sit parallel to the back wall regardless of head heading at scene-load.
 - Visual search: per-trial schedule interleaves color pop-out, shape pop-out, and conjunction trials over an 8 → 28 set-size sweep.
 - Calibration: post-fit verification trusts the same-sample fit residual when the small-sample re-test regresses by sampling noise.
+- Calibration: rewrite of the offset/gain fit. `OffsetEstimator` now runs a Theil-Sen joint offset+gain regression per axis and composes the result cumulatively with the prior profile. Verification gate switched to median-only (the 5pp accuracy-pct gate flipped on binomial noise). Gain estimation is gated on per-axis sample count, total eccentricity span, and the interquartile range of measured-axis values — the IQR gate prevents noise-driven gain blowup when the bulk of fixation samples sits in a tight central cluster with one or two outlier targets at each extreme. `[ActiveProfile] Applied` log line now surfaces gain alongside offset so non-unit gains are visible at runtime.
 
 ---
 

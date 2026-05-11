@@ -206,23 +206,34 @@ and the previous profile remains active.
 
 1. In Console or logcat, find the line `[CalibrationSessionManager]
    Post-fit verification regressed:` from
-   `Assets/Scripts/EyeTracking/Calibration/CalibrationSessionManager.cs:792`.
-   The reason string identifies which metric got worse.
-2. Reseat the headset, re-run the system-level eye tracker
-   calibration on the device, and re-attempt the Eye_lean session.
-   Verification rejects when the post-fit fixation test produces
-   greater error than the pre-fit baseline — usually a sign of head
-   slippage between the two phases.
-3. If the rejection persists, raise verification tolerance in the
-   `CalibrationSettings` ScriptableObject the manager reads from, or
-   accept the lower-quality fit by re-running with a fresh
-   participant ID.
+   `Assets/Scripts/EyeTracking/Calibration/CalibrationSessionManager.cs:881`.
+   The reason string reports the pre-fit and post-fit median errors.
+2. Check the `[ActiveProfile] Applied profile '<name>': yawOffset=...,
+   pitchOffset=..., yawGain=×..., pitchGain=×...` line at session
+   start. A non-unit gain (`×0.7`, `×1.3`, ...) on a session with a
+   pre-loaded profile is a sign the prior fit was over-aggressive;
+   clear the profile and refit.
+3. If pre-fit accuracy is unusually low on session start, the saved
+   `_default.json` may be stale — its correction was fit against an
+   earlier headset-level eye-calibration that has since been re-run.
+   Delete `Application.persistentDataPath/EyeLeanProfiles/_default.json`
+   on the device (over `adb`) and re-launch to fall back to identity
+   correction; the next calibration fits from scratch.
+4. Reseat the headset, re-run the system-level VIVE eye calibration
+   on the device, and re-attempt the Eye_lean session. A regression
+   also surfaces when the headset slips between pre-fit and post-fit
+   phases.
+5. If rejection persists with a tightly-seated headset and a fresh
+   profile, raise `VerificationMedianRegressionThresholdDeg`
+   (`CalibrationSessionManager.cs:784`, default 0.30°) — but inspect
+   the per-test medians first, since a persistent regression usually
+   means the fit itself is bad, not the gate.
 
 #### Verify
 
 A subsequent calibration logs `[CalibrationSessionManager]
 Verification passed; promoted profile to default:` from
-`CalibrationSessionManager.cs:810`, and `default.json` is rewritten.
+`CalibrationSessionManager.cs:899`, and `_default.json` is rewritten.
 
 ---
 
