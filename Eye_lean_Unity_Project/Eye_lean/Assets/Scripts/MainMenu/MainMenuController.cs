@@ -75,7 +75,8 @@ namespace EyeLean.MainMenu
             // synchronously so the panel isn't blank during the wait.
             string title = "Eye-LEAN";
             worldUI.ShowInstructions(title, BuildStatusBody(false, null) + "\n\nDetecting eye tracker...");
-            worldUI.ShowButtons(showStart: true, showNext: true);
+            worldUI.ShowButtons(showStart: true, showNext: true,
+                startLabel: "Start Calibration", nextLabel: "Start Experiment");
             StartCoroutine(RefreshStatusWhenTrackerReady(title));
         }
 
@@ -98,7 +99,8 @@ namespace EyeLean.MainMenu
             bool trackerAvailable = tracker != null && tracker.IsAvailable;
             Debug.Log($"[MainMenu] Tracker status (post-readiness): device={tracker?.DeviceName ?? "None"}, available={trackerAvailable}");
             worldUI.ShowInstructions(title, BuildStatusBody(trackerAvailable, tracker?.DeviceName));
-            worldUI.ShowButtons(showStart: true, showNext: true);
+            worldUI.ShowButtons(showStart: true, showNext: true,
+                startLabel: "Start Calibration", nextLabel: "Start Experiment");
         }
 
         void OnDestroy()
@@ -132,8 +134,7 @@ namespace EyeLean.MainMenu
 
             return "VR Eye-Tracking Toolkit • v1.0\n\n"
                  + deviceLine + "\n"
-                 + profileLine + "\n\n"
-                 + "<color=#7DC8FF>[START]</color> Calibrator     <color=#7DC8FF>[NEXT]</color> Sample Experiment";
+                 + profileLine;
         }
 
         private void HandleCalibratorClicked()

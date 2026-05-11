@@ -1272,13 +1272,26 @@ namespace EyeTracking.Calibration.UI
         }
 
         /// <summary>
-        /// Show or hide start/next buttons.
+        /// Show or hide start/next buttons. Optional <paramref name="startLabel"/>
+        /// and <paramref name="nextLabel"/> override the button text per-screen
+        /// (e.g. "Save &amp; Verify" / "Don't Save" on the Tuning prompt). Pass
+        /// null to keep the previous text — the button widgets persist across
+        /// phase transitions, so a null here leaves whatever the last call set.
         /// </summary>
-        public void ShowButtons(bool showStart, bool showNext)
+        public void ShowButtons(bool showStart, bool showNext, string startLabel = null, string nextLabel = null)
         {
             startButton.gameObject.SetActive(showStart);
             nextButton.gameObject.SetActive(showNext);
             buttonPanel.SetActive(showStart || showNext);
+            if (startLabel != null) SetButtonLabel(startButton, startLabel);
+            if (nextLabel != null) SetButtonLabel(nextButton, nextLabel);
+        }
+
+        private static void SetButtonLabel(Button button, string label)
+        {
+            if (button == null) return;
+            var text = button.GetComponentInChildren<Text>();
+            if (text != null) text.text = label;
         }
 
         /// <summary>

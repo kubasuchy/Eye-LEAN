@@ -350,25 +350,27 @@ namespace EyeTracking.Calibration
                 welcomeText += $"Participant: {participantID}\n";
             }
 
-            welcomeText += "\nPress START when ready to begin.";
+            welcomeText += "\nPress Begin Calibration when ready.";
 
             worldUI.ShowInstructions("Eye Tracking Calibration", welcomeText);
-            worldUI.ShowButtons(showStart: true, showNext: false);
+            worldUI.ShowButtons(showStart: true, showNext: false, startLabel: "Begin Calibration");
         }
 
         private void HandleInstructionsPhase()
         {
             if (worldUI != null)
             {
+                string firstScenarioName = scenarios.Count > 0 ? scenarios[0].name : "First Test";
+                string nextLabel = $"Continue to {firstScenarioName}";
                 string instructions = "During this session:\n\n" +
                                      "1. Keep your head as still as possible\n" +
                                      "2. Follow targets with your eyes only\n" +
                                      "3. Look at targets when they appear\n" +
                                      "4. Blink naturally when needed\n\n" +
-                                     "Press NEXT to begin the first test.";
+                                     $"Press {nextLabel} to begin.";
 
                 worldUI.ShowInstructions("Instructions", instructions);
-                worldUI.ShowButtons(showStart: false, showNext: true);
+                worldUI.ShowButtons(showStart: false, showNext: true, nextLabel: nextLabel);
             }
             else
             {
@@ -391,14 +393,16 @@ namespace EyeTracking.Calibration
 
             if (worldUI != null && waitingForUserInput)
             {
-                // Show scenario instructions
+                // Show scenario instructions. The scenario name is the panel
+                // title, so a generic "Start" on the button is unambiguous
+                // (no need to repeat the scenario name on the button itself).
                 string text = scenario.instructions + "\n\n" +
                              $"Duration: {scenario.duration:F0} seconds\n" +
                              $"Test {currentScenarioIndex + 1} of {scenarios.Count}\n\n" +
-                             "Press NEXT when ready to start.";
+                             "Press Start when ready.";
 
                 worldUI.ShowInstructions(scenario.name, text);
-                worldUI.ShowButtons(showStart: false, showNext: true);
+                worldUI.ShowButtons(showStart: false, showNext: true, nextLabel: "Start");
             }
             else
             {
@@ -486,9 +490,9 @@ namespace EyeTracking.Calibration
                 // Append the Return-to-Menu hint so the dwell-button affordance
                 // is discoverable; the START handler at this phase loads the
                 // MainMenu scene if it's in the build.
-                string body = BuildResultsReport() + "\n[START] Return to Main Menu";
+                string body = BuildResultsReport();
                 worldUI.ShowInstructions("Session Complete", body);
-                worldUI.ShowButtons(showStart: true, showNext: false);
+                worldUI.ShowButtons(showStart: true, showNext: false, startLabel: "Return to Main Menu");
             }
 
             OnSessionCompleted?.Invoke(aggregatedResults);
@@ -624,7 +628,8 @@ namespace EyeTracking.Calibration
             {
                 string body = BuildTuningPromptBody();
                 worldUI.ShowInstructions("Calibration Complete", body);
-                worldUI.ShowButtons(showStart: true, showNext: true);
+                worldUI.ShowButtons(showStart: true, showNext: true,
+                    startLabel: "Save & Verify", nextLabel: "Don't Save");
             }
             else
             {
@@ -663,8 +668,9 @@ namespace EyeTracking.Calibration
             sb.AppendLine($"  Before: {draftFitResult.preFitMedianErrorDeg:F2}°");
             sb.AppendLine($"  After:  {draftFitResult.postFitMedianErrorDeg:F2}°");
             sb.AppendLine();
-            sb.AppendLine("[START button] Save profile and apply");
-            sb.AppendLine("[NEXT button]  Skip — continue without saving");
+            sb.AppendLine("Save & Verify — write the new correction to disk and run a brief");
+            sb.AppendLine("                re-test to confirm it improved your accuracy.");
+            sb.AppendLine("Don't Save     — keep your previous saved profile and skip the re-test.");
             return sb.ToString();
         }
 
