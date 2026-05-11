@@ -432,7 +432,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 145fb2cb4469e4e9286d9a61d0876822, type: 3}
   m_Name: 
   m_EditorClassIdentifier: EyeLean.Replay::EyeLean.Replay.ReplayController
-  dataFilePath: /Users/jhs212/Eye_lean/Eye_lean_Unity_Project/Eye_lean/Assets/StreamingAssets/EyeTracking_20260503_160712.csv
+  dataFilePath:
   autoLoadOnStart: 1
   debugMode: 1
   playbackSpeed: 1
