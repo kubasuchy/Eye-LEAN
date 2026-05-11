@@ -49,7 +49,9 @@ namespace EyeTracking.Configuration
             {
                 Debug.Log($"[ActiveProfile] Applied profile '{profile.metadata.profileName}': " +
                           $"yawOffset={profile.combinedGaze.gazeYawOffsetDeg:F2}°, " +
-                          $"pitchOffset={profile.combinedGaze.gazePitchOffsetDeg:F2}°");
+                          $"pitchOffset={profile.combinedGaze.gazePitchOffsetDeg:F2}°, " +
+                          $"yawGain=×{profile.combinedGaze.gazeYawGain:F3}, " +
+                          $"pitchGain=×{profile.combinedGaze.gazePitchGain:F3}");
             }
             else
             {

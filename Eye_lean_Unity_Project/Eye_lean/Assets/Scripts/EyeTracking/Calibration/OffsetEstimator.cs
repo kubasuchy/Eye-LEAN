@@ -50,6 +50,17 @@ namespace EyeTracking.Calibration
             public float minGainDeviation = 0.05f;
             /// <summary>Suppress gain when the data does not span this many degrees in that axis.</summary>
             public float minEccentricityDeg = 10f;
+            /// <summary>
+            /// Suppress gain when the per-axis interquartile range (Q3-Q1) of
+            /// measured-axis values is below this many degrees. Total span
+            /// alone is not enough to trust the slope: with a tight central
+            /// cluster and one outlier target at each extreme, the slope is
+            /// dominated by ~2 leverage points and Theil-Sen has no robustness
+            /// budget. Requiring the bulk (middle 50%) of samples to span at
+            /// least this much guarantees the slope is constrained by
+            /// distributed evidence.
+            /// </summary>
+            public float minInterquartileEccentricityDeg = 4f;
         }
 
         public class Result
@@ -239,7 +250,28 @@ namespace EyeTracking.Calibration
             }
             float span = maxX - minX;
 
-            bool tryGain = options.fitGain && span >= options.minEccentricityDeg && n >= 30;
+            // Interquartile-range leverage check: total span alone is met
+            // even when 95% of samples sit in a tight cluster with one or
+            // two outlier targets at the extremes. In that regime
+            // Theil-Sen's slope is dominated by the few cross-cluster pairs
+            // and lands wildly off 1.0 (observed in-headset: pitch gain of
+            // 0.68 from a 7-target run with one target at +4° and one at
+            // -8° pitch, the rest clustered near -2°). Requiring the middle
+            // 50% of measurements to span minInterquartileEccentricityDeg
+            // gates against that failure mode.
+            float iqr;
+            {
+                var sortedXs = new List<float>(xs);
+                sortedXs.Sort();
+                int q1Idx = sortedXs.Count / 4;
+                int q3Idx = (3 * sortedXs.Count) / 4;
+                iqr = sortedXs[q3Idx] - sortedXs[q1Idx];
+            }
+
+            bool tryGain = options.fitGain
+                && span >= options.minEccentricityDeg
+                && iqr >= options.minInterquartileEccentricityDeg
+                && n >= 30;
 
             if (tryGain)
             {

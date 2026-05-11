@@ -296,18 +296,22 @@ namespace EyeLean.Tests.EditMode
         [Test]
         public void PostFitError_UsesAdditiveYawPitch_MatchesRuntimeCorrection()
         {
-            // The runtime gaze correction
+            // Regression guard for the v1.0.0 Quaternion.Euler-based post-fit
+            // verification: the live runtime correction
             // (ActiveProfile.ApplyCombinedCorrection / Python's
-            // posthoc_correction.apply_combined_correction) is additive in
-            // the head-local (yaw, pitch) decomposition. The post-fit
-            // error metric uses the same decomposition so it reflects the
-            // exact correction the runtime applies. On synthetic data
-            // constructed with the same yaw/pitch convention, the fitted
-            // offset should perfectly cancel the bias and the post-fit
-            // error should be at most floating-point noise.
-            const float yawBias = -7f;
-            const float pitchBias = 5f;
+            // posthoc_correction.apply_combined_correction) is ADDITIVE in
+            // the head-local (yaw, pitch) decomposition. Quaternion.Euler-
+            // based rotation only agrees to first order, so for non-tiny
+            // offsets the post-fit error reported by the fitter would
+            // diverge from what the runtime actually applies. Assert that
+            // a constructed perfect-fit case gives near-zero post-fit
+            // error (which it WOULDN'T under Quaternion.Euler for this
+            // offset magnitude).
+            const float yawBias = -7f;     // large enough that Quaternion.Euler
+            const float pitchBias = 5f;    // and additive yaw/pitch differ noticeably
             var samples = new List<GroundTruthSample>();
+            // Construct using the SAME yaw/pitch convention the runtime
+            // uses, so the fitted offset should perfectly cancel the bias.
             float[] iyaws   = { -8f, -4f, 0f, 4f, 8f };
             float[] ipitches = { -6f, -3f, 0f, 3f, 6f };
             foreach (var iy in iyaws)
@@ -322,8 +326,98 @@ namespace EyeLean.Tests.EditMode
             Assert.IsTrue(result.converged);
             Assert.AreEqual(-yawBias,   result.yawOffsetDeg,   1e-3f);
             Assert.AreEqual(-pitchBias, result.pitchOffsetDeg, 1e-3f);
+
+            // The post-fit error should be at most floating-point noise.
+            // Under v1.0.0's Quaternion.Euler post-fit math, the residual
+            // for a (-7°, 5°) offset across this grid would have been
+            // visibly non-zero (~0.4° median); the additive math makes it
+            // exact.
             Assert.Less(result.postFitMedianErrorDeg, 1e-3f,
-                "Additive yaw/pitch post-fit math should give exact recovery on synthetic data.");
+                "Additive yaw/pitch post-fit math should give exact recovery on synthetic data; " +
+                "non-trivial post-fit error here would suggest the v1.0.0 Quaternion.Euler path was reintroduced.");
+        }
+
+        // ----------------------------------------------------------------
+        // Gain-fit gate
+        // ----------------------------------------------------------------
+
+        [Test]
+        public void FitCombinedOffset_suppresses_gain_when_eccentricity_clustered()
+        {
+            // Reproduces the in-headset failure that motivated the IQR gate.
+            // 7-target geometry: 5 targets clustered near pitch -2°, one
+            // at pitch -8°, one at pitch +4°. Total pitch span ~12° (passes
+            // the span gate by a hair), but the IQR is ~0° because the
+            // bulk of measurements sits in the central cluster.
+            //
+            // Inject a true unit gain on pitch (no gain error to recover).
+            // With insufficient leverage Theil-Sen lands at a noise-driven
+            // off-1.0 slope; the IQR gate must catch this and fall back
+            // to offset-only with gain held at 1.0.
+            const int samplesPerTarget = 70;
+            // (intendedPitchDeg) per target — same distribution as the
+            // standard 7-target fixation set when sampled at a 1.65 m eye
+            // height against the world-fixed predefined positions.
+            float[] targetPitches = { -2f, -2f, -2f, -2f, -2f, -8f, +4f };
+            var samples = new List<GroundTruthSample>();
+            foreach (float p in targetPitches)
+            {
+                for (int k = 0; k < samplesPerTarget; k++)
+                {
+                    // Small per-sample jitter so Theil-Sen has the same
+                    // many-pairs structure as a real run (settled fixations
+                    // are not bit-identical).
+                    float jitter = (k * 0.0173f) % 0.5f - 0.25f;   // ~ ±0.25°
+                    Vector3 intended = DirFromYawPitch(0f, p);
+                    Vector3 measured = DirFromYawPitch(0f, p + jitter);
+                    samples.Add(MakeFixationSample(measured, intended));
+                }
+            }
+
+            var result = OffsetEstimator.FitCombinedOffset(samples, _head);
+            Assert.IsTrue(result.converged);
+            // Gate must reject gain fitting on this distribution: a noise-
+            // driven gain (e.g. 0.68 observed in headset) applied to off-
+            // axis verification targets produces several degrees of fresh
+            // error, which is exactly the post-fit regression the gate
+            // exists to prevent.
+            Assert.AreEqual(1f, result.pitchGain, 1e-6f,
+                "Pitch gain must be suppressed when only 2 leverage targets are present; " +
+                "IQR of intended-pitch values is < minInterquartileEccentricityDeg.");
+            // Yaw axis is single-valued (0°), so yaw gain must also stay 1.
+            Assert.AreEqual(1f, result.yawGain, 1e-6f);
+        }
+
+        [Test]
+        public void FitCombinedOffset_recovers_gain_when_eccentricity_well_distributed()
+        {
+            // Counterpart to the suppression test: when eccentricity coverage
+            // IS well-distributed (the IQR gate is satisfied), a real gain
+            // error must still be recoverable. Inject pitch gain = 1.25
+            // across an 11-pitch evenly-sampled grid and confirm the fit
+            // returns gain ≈ 1.25 rather than falling through to offset-only.
+            const float trueGain = 1.25f;
+            var samples = new List<GroundTruthSample>();
+            // Pitches -10..+10 in 11 steps × ~10 samples each → 110 samples,
+            // central 50% (IQR) spans -5..+5 = 10° > 4° threshold.
+            for (int p = -10; p <= 10; p += 2)
+            {
+                for (int k = 0; k < 10; k++)
+                {
+                    float jitter = (k * 0.137f) % 0.3f - 0.15f;
+                    Vector3 intended = DirFromYawPitch(0f, p);
+                    // Pretend the eye tracker reports pitch/gain → applying
+                    // gain on intended yields measured.
+                    float measuredPitch = p / trueGain + jitter;
+                    Vector3 measured = DirFromYawPitch(0f, measuredPitch);
+                    samples.Add(MakeFixationSample(measured, intended));
+                }
+            }
+
+            var result = OffsetEstimator.FitCombinedOffset(samples, _head);
+            Assert.IsTrue(result.converged);
+            Assert.AreEqual(trueGain, result.pitchGain, 0.05f,
+                "Pitch gain should be recovered when the IQR gate is satisfied.");
         }
     }
 }
