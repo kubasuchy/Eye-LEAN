@@ -270,8 +270,6 @@ and the full API surface.
 | Device | Eye-tracking sample rate | Status |
 |--------|--------------------------|--------|
 | HTC VIVE Focus Vision | up to 120 Hz; 90 Hz observed in current builds | Supported |
-| Varjo XR-3 / VR-3 | 200 Hz | Planned |
-| HoloLens 2 | 30 Hz | Planned |
 
 The Unity-side abstraction (`IEyeTracker` and `EyeTrackerFactory`) is
 device-agnostic; adding a new device requires implementing one
