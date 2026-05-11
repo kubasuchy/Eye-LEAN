@@ -47,6 +47,7 @@ Behavioral researchers who want to conduct VR experiments with eye tracking.
 Make sure to run the device-level eye calibration first.
 To avoid issues with the environment building in the calibration and sample experiment,
 we recommend resetting the device's view right before starting the app.
+The UI is fully gaze-based, no controllers needed.
 
 Three scenes ship as build targets in the APK; a fourth runs only in
 the Unity editor.
@@ -83,7 +84,7 @@ the Unity editor.
 - **Already comfortable with Unity?**
 
   ```bash
-  git clone https://github.com/kubasuchy/EYE-LEAN.git
+  git clone https://github.com/kubasuchy/Eye-LEAN.git
   ```
 
   Open `Eye_lean_Unity_Project/Eye_lean/` in Unity 6000.3.9f1, then
