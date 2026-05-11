@@ -87,9 +87,9 @@ Unity Hub.
 
 #### Verify
 
-The Unity console reports no compile errors after the import finishes,
-and the four scenes (`MainMenu`, `CalibrationScene`,
-`SampleExperiment`, `ReplayScene`) appear under `Assets/Scenes/`.
+The Unity console reports no compile errors after the import finishes, and the
+build-target scenes (`MainMenu`, `CalibrationScene`, `SampleExperiment`) appear
+under `Assets/Scenes/`.
 
 ### 2. Confirm required Unity packages
 
@@ -291,19 +291,22 @@ the first `SetMetadata` call carry the value.
 Replay runs only in the Unity Editor. The replay path is not packaged
 into the APK.
 
-### 1. Open the replay scene
+### 1. Open the experiment scene and add the replay rig
 
-1. Open the existing `Assets/Scenes/ReplayScene.unity`, or create a
-   new scene mirroring the experiment scene's content (controller,
-   environment generator, UI components, task managers).
-2. Add a single GameObject at the scene root with these components:
-   - `ReplayController`
-     (`Assets/Scripts/Replay/ReplayController.cs`) — the playback
-     engine; auto-attaches the siblings listed below.
-   - `DemoReplayBootstrapper`
-     (`Assets/Scripts/Replay/DemoReplayBootstrapper.cs`) — anchors
-     the room to the recording's coord-origin and auto-plays after
-     load.
+Open the same scene you recorded in (e.g. `SampleExperiment.unity`). Replay is
+not a separate scene — it re-runs the live experiment in place, so the
+controller, environment generator, UI, and task managers all need to be present
+exactly as they were during recording.
+
+Add a single GameObject at the scene root with these components:
+
+- `ReplayController` (`Assets/Scripts/Replay/ReplayController.cs`) — the
+  playback engine; auto-attaches the siblings listed below.
+- `DemoReplayBootstrapper` (`Assets/Scripts/Replay/DemoReplayBootstrapper.cs`)
+  — anchors the room to the recording's coord-origin and auto-plays after load.
+
+The SampleExperiment scene ships with this rig already wired; for your own
+scene, drop it in once and it persists.
 
 Auto-attached siblings (no manual setup):
 
@@ -311,13 +314,8 @@ Auto-attached siblings (no manual setup):
   `_SceneState.csv` per frame.
 - `SceneEventReplayer` — applies `RandomStateSnapshot` and any
   researcher-registered event handlers.
-- `ReplayGazeRaycaster` — drives `GazeTarget.IsBeingGazedAt` from
-  recorded gaze.
-
-The experiment scene's content (controller, environment generator,
-UI, task managers) must also live in the replay scene. Deterministic
-replay re-runs the live experiment against recorded inputs; without
-those components there is nothing to drive.
+- `ReplayGazeRaycaster` — drives `GazeTarget.IsBeingGazedAt` from recorded
+  gaze.
 
 ### 2. Configure the inspector
 
@@ -600,10 +598,9 @@ deterministically.
 
 ### "EyeTracker currently looking at: 'null'" forever in replay
 
-The replay scene is missing the live `EyeTracker` MonoBehaviour
-(normally carried over from the calibration scene via
-`DontDestroyOnLoad`, which editor-only replay does not load).
-`ReplayGazeRaycaster` auto-bootstraps to drive
+The scene is missing the live `EyeTracker` MonoBehaviour (normally carried over
+from the calibration scene via `DontDestroyOnLoad`, which editor-only replay
+does not load). `ReplayGazeRaycaster` auto-bootstraps to drive
 `GazeTarget.IsBeingGazedAt` directly. Confirm in the log:
 
 ```
@@ -614,7 +611,7 @@ If that line is absent, the `ReplayController` GameObject is not in
 the scene at scene-load time. Move it to the scene root and confirm
 no inactive parent.
 
-### Replay scene desyncs — instructions appear at wrong moments
+### Replay desyncs — instructions appear at wrong moments
 
 Common causes:
 
@@ -741,8 +738,8 @@ Sidecar paths are derived by appending `_SceneState.csv` and
 ```
 build 0   MainMenu.unity
 build 1   CalibrationScene.unity   (carries EyeTrackingManager → SampleExperiment via DontDestroyOnLoad)
-build 2   SampleExperiment.unity   (or your scene)
-editor    ReplayScene.unity        (mirrors SampleExperiment's content + ReplayController + DemoReplayBootstrapper)
+build 2   SampleExperiment.unity   (or your scene; also where replay runs in the editor
+                                   via ReplayController + DemoReplayBootstrapper)
 ```
 
 ---

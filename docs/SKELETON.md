@@ -1,43 +1,24 @@
 # Skeleton — researcher template
 
-## What it is
+The **Skeleton** is Eye_lean's clean trial-loop scaffold for building your own
+VR experiment. It's a **developer-side tool**: the MainMenu doesn't launch
+into it and the wizard does NOT add the generated scene to Build Settings. You
+use it in the editor as a starting point, add it to your own build settings
+when you're ready to ship, and Eye_lean's recording / replay / RIPA layer
+comes along for the ride.
 
-The **Skeleton** is Eye_lean's clean trial-loop scaffold for
-researchers building their own VR experiment. It is a
-**developer-side tool**, not part of the Eye_lean APK build flow:
-the MainMenu doesn't launch into it, and the wizard does NOT add the
-generated scene to Build Settings. You use it in the Unity editor as
-a starting point for your own experiment, add it to your own build
-settings when you're ready to ship, and Eye_lean's recording / replay
-/ RIPA layer comes along for the ride.
-
-[SampleExperiment](SAMPLE_EXPERIMENT.md) (build-2 in the shipped
-APK) remains the worked example you can read end-to-end. The
-Skeleton is the *minimum viable scaffold* for when you'd rather
-start from a blank canvas.
+[SampleExperiment](SAMPLE_EXPERIMENT.md) (build-2 in the shipped APK) remains
+the worked example you can read end-to-end. The Skeleton is the *minimum
+viable scaffold* for when you'd rather start from a blank canvas.
 
 The Skeleton's value is **shape**: a trial state machine
-(ITI → Platform → Fixation → ExperimentalPhase → TrialComplete) plus
-an `IExperimentPhaseHandler` interface where your code lives. You
-implement four methods, you're done.
+(ITI → Platform → Fixation → ExperimentalPhase → TrialComplete) plus an
+`IExperimentPhaseHandler` interface where your code lives. Implement four
+methods, you're done.
 
-## Audience
-
-Researchers building a custom experiment from the Skeleton template.
-
-## Prerequisites
-
-- The Eye_lean Unity project open in the editor.
-- Familiarity with C# MonoBehaviours.
-
-## When you'd use it
-
-- You want a fresh scene with minimum scaffolding.
-- Your task fits a "trials-with-phases" loop.
-- You want full Eye_lean recording / replay / RIPA out of the box
-  with zero wiring.
-- You're new to VR experiment design and want a less-overwhelming
-  starting point than reading SampleExperiment's full source.
+Use it when your task fits a "trials-with-phases" loop and you want a fresh
+scene with minimum scaffolding and full Eye_lean recording / replay / RIPA out
+of the box.
 
 ## How to use it
 

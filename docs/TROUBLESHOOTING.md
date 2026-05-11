@@ -250,9 +250,9 @@ is `0` or `NaN`.
    `RIPAMonitorBootstrap` (`Assets/Scripts/EyeTracking/Metrics/RIPAMonitorBootstrap.cs:24`)
    already auto-spawns one per scene; remove any manually placed
    monitor unless you need custom Inspector settings.
-4. In replay scenes, `RIPAMonitorBootstrap` deliberately skips
-   spawning so the recorded `LiveLoadIndex` is preserved. This is
-   correct behaviour, not a bug.
+4. During replay, `RIPAMonitorBootstrap` deliberately skips spawning so the
+   recorded `LiveLoadIndex` is preserved. This is correct behaviour, not a
+   bug.
 
 #### Verify
 
@@ -292,7 +292,7 @@ varies with gaze.
 
 ---
 
-### Replay scene shows no movement or wrong duration
+### Replay shows no movement or wrong duration
 
 **Symptom**: `ReplayController` loads a CSV but playback is frozen,
 empty, or finishes immediately.
@@ -306,11 +306,10 @@ empty, or finishes immediately.
    (`ReplayController.cs:401`), the load failed silently. Re-check
    the file path on the `ReplayController` Inspector.
 3. If the room geometry is missing, look for
-   `[DemoReplayBootstrapper] No EnvironmentGenerator in scene —
-   nothing to anchor.` from
-   `Assets/Scripts/Experiment/DemoReplayBootstrapper.cs:62`. The
-   replay scene needs an `EnvironmentGenerator` to rebuild props at
-   the recorded coordinate origin.
+   `[DemoReplayBootstrapper] No EnvironmentGenerator in scene — nothing to
+   anchor.` from `Assets/Scripts/Experiment/DemoReplayBootstrapper.cs:62`. The
+   scene needs an `EnvironmentGenerator` to rebuild props at the recorded
+   coordinate origin.
 4. If the recorded gaze does not drive live experiment logic, confirm
    `[ReplayController] Deterministic replay: installed
    ReplayingEyeTracker as factory override; recorded gaze will drive

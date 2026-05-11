@@ -1,16 +1,13 @@
 # eyelean_analysis — Python Researcher Guide
 
-The Python half of [Eye_lean](../README.md) — **EYE-LEAN** (Locomotion, Exploration, Action, and Navigation with Eye Tracking): a Behavioral Research Toolkit for Data Rich Virtual Reality Experiments. Loads the CSVs written by
-the Unity toolkit and provides signal processing, eye-movement
-classification, attention and cognitive-load metrics, per-phase reports
-for the sample experiment, post-hoc calibration correction, and batch
-processing across many recordings.
+The Python half of [Eye-LEAN](../README.md). Loads the CSVs the Unity toolkit
+writes, then runs signal processing, eye-movement classification, attention
+and cognitive-load metrics, per-phase reports for the sample experiment,
+post-hoc calibration correction, and batch processing.
 
-This document is the canonical "I have a recording, what do I do with
-it?" walkthrough. It mirrors the Unity-side
-[RESEARCHER_GUIDE.md](../Eye_lean_Unity_Project/Eye_lean/docs/RESEARCHER_GUIDE.md),
-which covers recording and replay; this guide picks up where that one
-ends.
+This is the "I have a recording, what do I do with it?" walkthrough. The
+Unity-side [RESEARCHER_GUIDE.md](../Eye_lean_Unity_Project/Eye_lean/docs/RESEARCHER_GUIDE.md)
+covers recording and replay; this guide picks up where that one ends.
 
 ## Contents
 
@@ -34,9 +31,9 @@ ends.
 
 ## Concepts at a glance
 
-A live Eye_lean session writes one to three CSV files into
-`Logs/` (or, when running from the editor against the bundled sample,
-`Assets/StreamingAssets/`):
+A live Eye_lean session writes one to three CSV files into `Logs/` (or
+`Assets/StreamingAssets/` when running from the editor against the bundled
+sample):
 
 | File | Always present | Contents |
 |---|---|---|

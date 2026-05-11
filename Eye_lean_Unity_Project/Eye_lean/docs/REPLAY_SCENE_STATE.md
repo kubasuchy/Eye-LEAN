@@ -140,11 +140,11 @@ flag is sufficient.
 
 ### Anchor the replay environment to the recording's coordinate frame
 
-Recorded eye-direction vectors are in **hardware-world-space**. The replay
-scene must land its environment in that same world frame, otherwise gaze rays
-point at where targets WERE during recording and not where the replay scene
-spawned them. `DemoReplayBootstrapper` now does this automatically via the
-new `anchorToRecording` toggle (default ON):
+Recorded eye-direction vectors are in **hardware-world-space**. The scene must
+land its environment in that same world frame on replay, otherwise gaze rays
+point at where targets WERE during recording and not where the scene spawned
+them on this run. `DemoReplayBootstrapper` does this automatically via the
+`anchorToRecording` toggle (default ON):
 
 1. Reads the sidecar's `CoordinateOrigin` (or first-frame `HeadPosition` if
    the origin wasn't set during recording) for position.
@@ -160,9 +160,9 @@ in the console as confirmation.
 ### Placeholder spawning for missing recorded objects
 
 Recorded objects in the demo scene are spawned at runtime by the experiment
-state machine, with fresh GUIDs each session. The editor replay scene starts
-fresh — those GUIDs don't exist on the receiving side, so `SceneStateReplayer`
-can't drive them by id-match. New behavior:
+state machine, with fresh GUIDs each session. Replay starts fresh — those
+GUIDs don't exist on the receiving side, so `SceneStateReplayer` can't drive
+them by id-match. New behavior:
 
 - `SceneStateReplayer.spawnPlaceholdersForMissingIds` (default ON) instantiates
   a sphere primitive for each recorded id without a live `Recordable` match,

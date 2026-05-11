@@ -113,10 +113,10 @@ CSV (de-normalize on apply during replay).
   every frame; configurable via `SampleEveryNthFrame` on
   `SceneRecordingProfile`. For 30-min sessions consider `2` or `3` to
   halve / third disk usage if frame-exact reproduction isn't needed.
-- **Replay placeholder mode.** If the replay scene is missing some
-  prefabs (e.g. researcher only kept the source CSV), the replayer
-  spawns colored placeholder cubes for each unknown GUID so the
-  visualizer keeps working.
+- **Replay placeholder mode.** If the scene is missing some prefabs at replay
+  time (e.g. the researcher only kept the source CSV), the replayer spawns
+  colored placeholder cubes for each unknown GUID so the visualizer keeps
+  working.
 
 ## References
 

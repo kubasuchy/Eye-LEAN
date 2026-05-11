@@ -1,19 +1,10 @@
 # Post-hoc Eye-Tracking Profile Correction
 
-## What it is
-
-The Unity calibrator's `EyeTrackingProfile` JSON captures a per-user
-yaw/pitch correction that is applied **live** to the gaze stream when
-the profile is active. The Python module
-`eyelean_analysis.calibration.posthoc_correction` re-applies that same
-correction to a CSV **after the fact**, so a recording made without
-the profile loaded can still be analyzed in the same coordinate frame
-as a corrected one.
-
-## Audience
-
-Researchers re-applying a calibration profile to a previously
-recorded CSV.
+The Unity calibrator's `EyeTrackingProfile` JSON captures a per-user yaw/pitch
+correction that is applied **live** to the gaze stream when the profile is
+active. `eyelean_analysis.calibration.posthoc_correction` re-applies that same
+correction to a CSV after the fact, so a recording made without the profile
+loaded can still be analyzed in the same coordinate frame as a corrected one.
 
 ## Prerequisites
 

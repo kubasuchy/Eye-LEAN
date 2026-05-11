@@ -1,22 +1,18 @@
 # RIPA Monitor — real-time pupillary cognitive-load index
 
-Per-frame cognitive-load index from the live pupil-diameter stream.
-Published to listeners and to the `LiveLoadIndex` CSV column. Metric
-is **RIPA2** (Jayawardena, Jayawardana & Gwizdka 2025). The bootstrap
-auto-spawns a monitor in every scene at `AfterSceneLoad` and attaches
-a `RIPACSVColumn` so the CSV gains the column without manual wiring.
-
-## Audience
-
-Researchers using or interpreting the `LiveLoadIndex` column.
+Per-frame cognitive-load index from the live pupil-diameter stream, published
+to listeners and to the `LiveLoadIndex` CSV column. Metric is **RIPA2**
+(Jayawardena, Jayawardana & Gwizdka 2025). The bootstrap auto-spawns a
+monitor in every scene at `AfterSceneLoad` and attaches a `RIPACSVColumn` so
+the CSV gains the column without manual wiring.
 
 ## Prerequisites
 
 - An eye tracker in the scene (any scene calling
   `EyeTrackerFactory.GetEyeTracker()` directly or via `EyeTracker`).
 - A `SessionRecorder` if you want the CSV column.
-- Cite RIPA2 when publishing data using `LiveLoadIndex` or any
-  `RIPAMonitor` output. See `ACKNOWLEDGMENTS.md`.
+- Cite RIPA2 when publishing data using `LiveLoadIndex` — see
+  `ACKNOWLEDGMENTS.md`.
 
 ---
 

@@ -8,22 +8,15 @@
 
 ## What it is
 
-Eye-LEAN is a Unity + Python toolkit for visualizing, collecting and analyzing
-eye-tracking data from virtual-reality head-mounted displays. The Unity
-project was tested on the VIVE Focus Vision headsets (but is built on the OpenXR standard)
-and writes per-frame binocular gaze, pupil, and head-tracking data to CSV. The
-Python package loads those CSVs, detects fixations and saccades,
-computes attention and cognitive-load metrics (K-coefficient, RIPA2,
-LHIPA, gaze entropy), and visualizes results. The two halves are
-designed to work together but can also be used independently: the CSV
-format is documented and stable, and the analysis package accepts data
-from any source that matches the schema.
+Eye-LEAN is a Unity + Python toolkit for collecting and analyzing eye-tracking
+data from VR headsets, built for behavioral researchers. The Unity project
+records per-frame binocular gaze, pupil, and head pose to CSV on a VIVE Focus
+Vision (or any OpenXR eye-tracking HMD). The Python package loads those CSVs,
+detects fixations and saccades, computes attention and cognitive-load metrics
+(K-coefficient, RIPA2, LHIPA, gaze entropy), and plots the results. Either half
+works on its own — the CSV schema is stable and documented.
 
 In memory of Professor Eileen Kowler.
-
-## Audience
-
-Behavioral researchers who want to conduct VR experiments with eye tracking.
 
 ## Prerequisites
 
@@ -41,36 +34,34 @@ Behavioral researchers who want to conduct VR experiments with eye tracking.
 | Unity toolkit | Data collection on VIVE Focus Vision | `Eye_lean_Unity_Project/Eye_lean/` |
 | Python analysis package | Loading, classification, metrics, visualization | `eyelean_analysis/` |
 | Sample experiment | Four-phase cognitive task battery (FreeExploration, VisualSearch, CountingTask, ChangeDetection) | Unity `SampleExperiment` scene |
-| Replay system | Offline playback and inspection of recorded sessions | Unity `ReplayScene` (editor only) |
+| Replay | Offline playback of a recorded session in the editor | Component dropped into the experiment scene |
+| Skeleton template | Starting point for building your own experiment | Unity menu: `VR Experiment > New Skeleton Scene` |
 
 ## Scene flow
-Make sure to run the device-level eye calibration first.
-To avoid issues with the environment building in the calibration and sample experiment,
-we recommend resetting the device's view right before starting the app.
-The UI is fully gaze-based, no controllers needed.
 
-Three scenes ship as build targets in the APK; a fourth runs only in
-the Unity editor.
+Run the device-level eye calibration first, and reset the headset's view right
+before launching the app — the environment generators in calibration and
+experiment use the starting pose as the world anchor. The UI is gaze-based;
+no controllers needed.
 
-1. `MainMenu.unity` (build index 0) — launcher. Reuses the calibrator's
-   gaze-dwell button system to route the participant to either the
-   calibrator or the experiment scene. Auto-loads the user's
-   `_default.json` calibration profile if one is present.
-2. `CalibrationScene.unity` (build index 1) — calibrator. Runs three
-   ground-truth tests (fixation, saccade, smooth pursuit) plus a
-   tuning phase that fits a per-user yaw/pitch correction and a
-   verification phase that re-tests with the new profile applied.
-   Saves an `EyeTrackingProfile` JSON next to the CSV for reuse.
-3. `SampleExperiment.unity` (build index 2) — four-phase battery
-   (FreeExploration, VisualSearch, CountingTask, ChangeDetection).
-   Records CSV with a `CurrentPhase` column so per-phase analysis is
-   automatic on the Python side. The
-   [`RIPAMonitor`](docs/RIPA_MONITOR.md) drop-in component writes a
-   real-time RIPA2 cognitive-load index to the `LiveLoadIndex` column
-   on every row.
-4. `ReplayScene.unity` (editor only) — loads a recorded CSV and steps
-   through it with synchronized gaze rays, vergence point, and head
-   pose. Used during analysis to spot-check an interesting trial.
+Three scenes ship as APK build targets:
+
+1. `MainMenu.unity` (build 0) — launcher. Routes the participant to the
+   calibrator or the experiment, and auto-loads their `_default.json`
+   calibration profile if one exists.
+2. `CalibrationScene.unity` (build 1) — calibrator. Three ground-truth tests
+   (fixation, saccade, smooth pursuit) followed by a tuning + verification
+   pass; saves an `EyeTrackingProfile` JSON next to the CSV.
+3. `SampleExperiment.unity` (build 2) — the four-phase battery
+   (FreeExploration, VisualSearch, CountingTask, ChangeDetection). The CSV
+   has a `CurrentPhase` column so per-phase analysis is automatic, and the
+   [`RIPAMonitor`](docs/RIPA_MONITOR.md) component writes a live RIPA2
+   cognitive-load index into the `LiveLoadIndex` column.
+
+Replay and Skeleton are editor-only, not build targets. Replay is a component
+(`ReplayManager` + `DemoReplayBootstrapper`) you drop into the same scene used
+to record; Skeleton is a template scene materialized via
+`VR Experiment > New Skeleton Scene` when you're ready to build your own task.
 
 ---
 
@@ -95,9 +86,9 @@ the Unity editor.
 
 #### Verify
 
-Unity opens the project without compile errors and the four scenes
-(`MainMenu`, `CalibrationScene`, `SampleExperiment`, `ReplayScene`)
-appear under `Assets/Scenes/`.
+Unity opens the project without compile errors and the build-target scenes
+(`MainMenu`, `CalibrationScene`, `SampleExperiment`) appear under
+`Assets/Scenes/`.
 
 ### Python
 
@@ -108,11 +99,11 @@ appear under `Assets/Scenes/`.
    pip install -e "./eyelean_analysis[all]"     # core + visualization + tests
    ```
 
-2. Open the example notebook suite under
+2. Open the example notebooks under
    [`eyelean_analysis/notebooks/examples/`](eyelean_analysis/notebooks/examples/).
-   Every notebook auto-discovers data via one line and falls back to a
-   bundled v1.2 sample on a fresh checkout, so `Run All` works
-   end-to-end before any recording exists:
+   Each one auto-discovers data in one line and falls back to a bundled v1.2
+   sample, so `Run All` works on a fresh checkout before you've recorded
+   anything:
 
    ```python
    import eyelean_analysis as ela
@@ -146,15 +137,13 @@ report = ela.analyze_sample_experiment(
 print(report.to_dataframe())
 ```
 
-The reusable conversion from world-space gaze direction columns
-(`CombinedDir_X/Y/Z`) to angular yaw/pitch in degrees is documented
-in `04_eye_movements.ipynb`.
+Converting world-space gaze direction columns (`CombinedDir_X/Y/Z`) to yaw/pitch
+in degrees is shown in `04_eye_movements.ipynb`.
 
 #### v1.2 scene-state and event sidecars
 
-When scene recording is enabled, each session writes two sidecars
-alongside the main CSV. The Python loader knows how to find and join
-them:
+If scene recording is enabled, each session writes two sidecars next to the
+main CSV. The loader joins them for you:
 
 ```python
 state, events = ela.load_scene_sidecars(
@@ -168,8 +157,7 @@ including event-aligned analyses and Spawn/Despawn lifetime tracking.
 
 ### Post-hoc calibration correction
 
-A saved `EyeTrackingProfile` can be re-applied to any recording made
-without it active:
+Re-apply a saved `EyeTrackingProfile` to any recording that was made without it:
 
 ```python
 ela.apply_profile_to_csv(
@@ -187,9 +175,8 @@ recording will compound the offset.
 
 ## CSV format
 
-Each recording starts with a metadata block of `# Key: value` lines
-followed by the column header. The metadata captures everything
-needed to reproduce the analysis later:
+Each recording opens with a metadata block (`# Key: value` lines) above the
+column header. The block has everything you need to reproduce the analysis:
 
 ```
 # CoordinateOrigin: 0.0000,0.0000,0.0000
@@ -200,12 +187,11 @@ needed to reproduce the analysis later:
 UnityTimestamp,RealTimeSinceStartup,...,CurrentPhase,...,CombinedDir_X,...
 ```
 
-`CoordinateOrigin` and `CoordinateOriginSet` indicate whether
-position columns are world-space or normalized to a trial-start
-anchor. `Profile` records which calibration correction was already
-applied live. The Python loader treats `#` lines as comments by
-default; `eyelean_analysis.read_csv_metadata(path)` returns the
-block as a dict for inspection.
+`CoordinateOrigin` and `CoordinateOriginSet` tell you whether position columns
+are world-space or normalized to a trial-start anchor. `Profile` records which
+calibration correction was applied live. The Python loader treats `#` lines as
+comments; `eyelean_analysis.read_csv_metadata(path)` returns the block as a
+dict.
 
 Column definitions are in
 [`docs/DATA_SCHEMA.md`](Eye_lean_Unity_Project/Eye_lean/docs/DATA_SCHEMA.md).
@@ -220,7 +206,7 @@ Eye_lean/
     Assets/Scripts/EyeTracking/         Core eye-tracking pipeline
     Assets/Scripts/Replay/              CSV playback
     Assets/Scenes/                      MainMenu, CalibrationScene,
-                                        SampleExperiment, ReplayScene
+                                        SampleExperiment (+ Skeleton template)
     Assets/Tests/EditMode/              NUnit tests for the
                                         calibration math
     docs/                               Architecture, algorithms,
@@ -271,9 +257,8 @@ and the full API surface.
 |--------|--------------------------|--------|
 | HTC VIVE Focus Vision | up to 120 Hz; 90 Hz observed in current builds | Supported |
 
-The Unity-side abstraction (`IEyeTracker` and `EyeTrackerFactory`) is
-device-agnostic; adding a new device requires implementing one
-interface and registering it with the factory.
+`IEyeTracker` + `EyeTrackerFactory` are device-agnostic — adding a new device
+means implementing one interface and registering it with the factory.
 
 ---
 
@@ -304,12 +289,11 @@ notebook expects them in `Logs/` at the repo root.
 }
 ```
 
-See [`CITATION.cff`](CITATION.cff) for the machine-readable form.
-Citing the underlying algorithms (RIPA2 — Jayawardena 2025; LHIPA —
-Duchowski 2018; Rocketbox avatars — Gonzalez-Franco 2020) is also
-expected when the corresponding feature contributed to your
-analysis. See [`ACKNOWLEDGMENTS.md`](ACKNOWLEDGMENTS.md) for the
-full citation list.
+See [`CITATION.cff`](CITATION.cff) for the machine-readable form. Please also
+cite the underlying algorithms (RIPA2 — Jayawardena 2025; LHIPA — Duchowski
+2018; Rocketbox avatars — Gonzalez-Franco 2020) when the corresponding feature
+contributed to your analysis. [`ACKNOWLEDGMENTS.md`](ACKNOWLEDGMENTS.md) has
+the full list.
 
 ## Authors
 
@@ -322,9 +306,8 @@ Primary author and maintainer: Jakub Suchojad ([jhs212@scarletmail.rutgers.edu](
 
 ## Acknowledgments
 
-For prior work, software dependencies, and the people / labs whose
-contributions made Eye_lean possible, see
-[`ACKNOWLEDGMENTS.md`](ACKNOWLEDGMENTS.md).
+Prior work, software dependencies, and the people and labs who made Eye-LEAN
+possible are listed in [`ACKNOWLEDGMENTS.md`](ACKNOWLEDGMENTS.md).
 
 ## License
 

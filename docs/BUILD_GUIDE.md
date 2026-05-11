@@ -1,17 +1,11 @@
 # Eye_lean Build Guide
 
-## What it is
-
-Step-by-step instructions for building the Eye_lean APK for the VIVE
-Focus Vision and deploying it to the device. For environment setup
-(Unity install, package configuration, scene scaffolding), see
-[`SETUP.md`](../Eye_lean_Unity_Project/Eye_lean/docs/SETUP.md). For
-the full researcher walkthrough, see
+Step-by-step instructions for building the Eye_lean APK for the VIVE Focus
+Vision and deploying it to the device. For first-time environment setup (Unity
+install, package config, scene scaffolding), see
+[`SETUP.md`](../Eye_lean_Unity_Project/Eye_lean/docs/SETUP.md). For the
+end-to-end researcher walkthrough, see
 [`RESEARCHER_GUIDE.md`](../Eye_lean_Unity_Project/Eye_lean/docs/RESEARCHER_GUIDE.md).
-
-## Audience
-
-Developers building the APK for the VIVE Focus Vision.
 
 ## Prerequisites
 

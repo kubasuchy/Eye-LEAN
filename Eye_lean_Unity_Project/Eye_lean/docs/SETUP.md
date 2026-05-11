@@ -1,16 +1,9 @@
 # Setup Guide
 
-## What it is
-
 Step-by-step environment setup for the Eye_lean Unity project: hardware,
-software prerequisites, Unity project configuration, device pairing, a
-first device build, and data retrieval. For the build-only flow (after
-setup is complete), see
-[`../../../docs/BUILD_GUIDE.md`](../../../docs/BUILD_GUIDE.md).
-
-## Audience
-
-Developers setting up the Unity project from scratch.
+software prerequisites, Unity project configuration, device pairing, a first
+device build, and data retrieval. For the build-only flow (after setup is
+done), see [`../../../docs/BUILD_GUIDE.md`](../../../docs/BUILD_GUIDE.md).
 
 ## Prerequisites
 
@@ -41,9 +34,10 @@ Developers setting up the Unity project from scratch.
 | Device | Eye Tracking Rate | Status |
 |--------|------------------|--------|
 | **HTC VIVE Focus Vision** | 120 Hz | Fully Supported |
-| Varjo XR-3 / VR-3 | 200 Hz | Planned |
-| HoloLens 2 | 30 Hz | Planned |
 | Meta Quest 3 | N/A | Not supported (no native eye tracking) |
+
+Other OpenXR eye-tracking headsets should work via the
+`IEyeTracker` + `EyeTrackerFactory` abstraction but have not been tested.
 
 ### Primary device: HTC VIVE Focus Vision
 
