@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Analysis: `fixation_entropy` returns paired SGE + GTE per Shiferaw 2019 / Krejtz 2015; `analyze_sample_experiment` reports both per phase.
 - Analysis: K-coefficient warns and returns `UNKNOWN` without `pooled_stats`; notebooks 04/05 rewritten for per-phase analysis.
 - Analysis: loader `low_memory=False`; batch pupil averaging masks before division.
+- Analysis: new `gaze_heatmap_2d`, `gaze_heatmap_3d_projections`, `aoi_heatmap`, and `list_gazed_objects` helpers; notebook 10 walks through all three views with a per-object dropdown.
 
 ---
 

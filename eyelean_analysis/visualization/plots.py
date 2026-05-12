@@ -354,3 +354,241 @@ def create_pupil_plot(
         ylabel='Pupil Diameter (mm)',
         figsize=figsize,
     )
+
+
+# ---------------------------------------------------------------------------
+# Gaze heatmaps (2D angular, 3D world-space, per-object AOI)
+# ---------------------------------------------------------------------------
+
+def _smooth_histogram2d(
+    x: np.ndarray, y: np.ndarray, bins: int,
+    x_range: Optional[Tuple[float, float]] = None,
+    y_range: Optional[Tuple[float, float]] = None,
+    sigma_bins: float = 1.5,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """2D histogram with separable Gaussian smoothing.
+
+    Returns ``(H, x_edges, y_edges)`` with H shaped (n_y, n_x) for
+    ``imshow``-style display (note the axis swap relative to numpy's
+    default ``histogram2d`` output).
+    """
+    mask = ~(np.isnan(x) | np.isnan(y))
+    x, y = x[mask], y[mask]
+    if x_range is None:
+        x_range = (float(np.min(x)), float(np.max(x))) if len(x) else (0.0, 1.0)
+    if y_range is None:
+        y_range = (float(np.min(y)), float(np.max(y))) if len(y) else (0.0, 1.0)
+    H, xe, ye = np.histogram2d(x, y, bins=bins, range=[x_range, y_range])
+    H = H.T  # match imshow orientation
+
+    # Separable Gaussian smoothing (avoid scipy dependency).
+    if sigma_bins > 0 and H.size:
+        radius = max(1, int(np.ceil(3 * sigma_bins)))
+        k = np.arange(-radius, radius + 1, dtype=float)
+        kernel = np.exp(-(k ** 2) / (2 * sigma_bins ** 2))
+        kernel /= kernel.sum()
+        # Convolve along each axis with reflect padding.
+        for axis in (0, 1):
+            H = np.apply_along_axis(
+                lambda v: np.convolve(np.pad(v, radius, mode='reflect'), kernel, mode='valid'),
+                axis, H,
+            )
+    return H, xe, ye
+
+
+def gaze_heatmap_2d(
+    yaw: np.ndarray,
+    pitch: np.ndarray,
+    bins: int = 60,
+    sigma_bins: float = 1.5,
+    yaw_range: Optional[Tuple[float, float]] = None,
+    pitch_range: Optional[Tuple[float, float]] = None,
+    cmap: str = 'hot',
+    title: str = 'Gaze heatmap (angular)',
+    figsize: Tuple[int, int] = (10, 6),
+    ax: Optional['plt.Axes'] = None,
+) -> Tuple['plt.Figure', 'plt.Axes']:
+    """Gaussian-smoothed 2D heatmap of gaze in angular (yaw, pitch) space.
+
+    Use the combined-gaze yaw/pitch derived from ``CombinedDir_*``
+    columns:
+
+        yaw   = degrees(arctan2(dx, dz))
+        pitch = -degrees(arcsin(clip(dy, -1, 1)))
+
+    Args:
+        yaw, pitch: per-sample yaw/pitch in degrees.
+        bins: grid resolution.
+        sigma_bins: Gaussian smoothing kernel σ, in bins. 0 disables
+            smoothing (recovers the raw 2D histogram).
+        yaw_range, pitch_range: explicit angular extents. Pass fixed
+            values (e.g. (-60, 60), (-45, 45) for a typical HMD FOV)
+            when comparing heatmaps across recordings.
+    """
+    _check_matplotlib()
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
+    else:
+        fig = ax.get_figure()
+    H, xe, ye = _smooth_histogram2d(
+        np.asarray(yaw, dtype=float), np.asarray(pitch, dtype=float),
+        bins=bins, x_range=yaw_range, y_range=pitch_range, sigma_bins=sigma_bins,
+    )
+    extent = (xe[0], xe[-1], ye[0], ye[-1])
+    im = ax.imshow(H, origin='upper', extent=extent, aspect='auto',
+                   cmap=cmap, interpolation='bilinear')
+    ax.invert_yaxis()  # pitch positive = up
+    ax.set_xlabel('yaw (deg)')
+    ax.set_ylabel('pitch (deg)')
+    ax.set_title(title)
+    cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    cbar.set_label('density (smoothed)')
+    return fig, ax
+
+
+def gaze_heatmap_3d_projections(
+    x: np.ndarray, y: np.ndarray, z: np.ndarray,
+    bins: int = 50,
+    sigma_bins: float = 1.5,
+    cmap: str = 'hot',
+    title: str = '3D gaze (vergence point) — orthographic projections',
+    figsize: Tuple[int, int] = (13, 4),
+) -> Tuple['plt.Figure', np.ndarray]:
+    """Three orthographic projections of a 3D gaze point cloud.
+
+    Plots top-down (X-Z, looking down at the floor), front (X-Y,
+    looking at the back wall), and side (Z-Y, looking from the right)
+    Gaussian-smoothed heatmaps of a vergence-point cloud. Static and
+    legible — preferable to a 3D scatter that rotates badly in a
+    notebook.
+
+    Args:
+        x, y, z: world-space coordinates from
+            ``VergencePoint_X/Y/Z``. Pass only rows where
+            ``HasValidVergence`` is true.
+    """
+    _check_matplotlib()
+    x = np.asarray(x, dtype=float); y = np.asarray(y, dtype=float); z = np.asarray(z, dtype=float)
+    mask = ~(np.isnan(x) | np.isnan(y) | np.isnan(z))
+    x, y, z = x[mask], y[mask], z[mask]
+
+    fig, axes = plt.subplots(1, 3, figsize=figsize)
+    if len(x) == 0:
+        for a, lab in zip(axes, ('Top (X–Z)', 'Front (X–Y)', 'Side (Z–Y)')):
+            a.set_title(f'{lab}\n(no valid samples)')
+            a.set_xticks([]); a.set_yticks([])
+        fig.suptitle(title)
+        plt.tight_layout()
+        return fig, axes
+
+    panels = [
+        (x, z, 'X (m, right→)', 'Z (m, forward→)', 'Top (X–Z)',   False),
+        (x, y, 'X (m, right→)', 'Y (m, up→)',     'Front (X–Y)', False),
+        (z, y, 'Z (m, forward→)', 'Y (m, up→)',   'Side (Z–Y)',  False),
+    ]
+    for ax, (u, v, xl, yl, lab, invert) in zip(axes, panels):
+        H, ue, ve = _smooth_histogram2d(u, v, bins=bins, sigma_bins=sigma_bins)
+        ax.imshow(H, origin='upper', extent=(ue[0], ue[-1], ve[0], ve[-1]),
+                  aspect='equal', cmap=cmap, interpolation='bilinear')
+        ax.invert_yaxis()
+        ax.set_xlabel(xl); ax.set_ylabel(yl); ax.set_title(lab, fontsize=10)
+    fig.suptitle(title)
+    plt.tight_layout()
+    return fig, axes
+
+
+def list_gazed_objects(
+    df: 'pd.DataFrame',
+    min_samples: int = 5,
+    exclude: Optional[Tuple[str, ...]] = None,
+) -> 'pd.DataFrame':
+    """Tally per-object dwell counts from the ``GazedObjectName`` column.
+
+    Args:
+        df: Eye_lean main CSV as a DataFrame (must have
+            ``GazedObjectName`` and a timestamp/delta column).
+        min_samples: drop objects with fewer than this many samples.
+        exclude: object names to drop (e.g. wall identifiers).
+
+    Returns:
+        DataFrame with columns ``object_name``, ``n_samples``,
+        ``dwell_seconds``, sorted by ``n_samples`` desc.
+    """
+    import pandas as pd
+    col = 'GazedObjectName' if 'GazedObjectName' in df.columns else 'gazed_object_name'
+    if col not in df.columns:
+        return pd.DataFrame(columns=['object_name', 'n_samples', 'dwell_seconds'])
+    sr = df[col].fillna('').astype(str).str.strip()
+    sr = sr[sr != '']
+    if exclude:
+        sr = sr[~sr.isin(set(exclude))]
+    counts = sr.value_counts()
+    counts = counts[counts >= int(min_samples)]
+    # Dwell seconds from frame deltas if available.
+    dt_col = next((c for c in ('DeltaTime', 'delta_time') if c in df.columns), None)
+    if dt_col is None:
+        dwell = counts * float('nan')
+    else:
+        dwell = df.groupby(col)[dt_col].sum().reindex(counts.index)
+    out = pd.DataFrame({
+        'object_name': counts.index,
+        'n_samples':   counts.values,
+        'dwell_seconds': dwell.values,
+    })
+    return out.reset_index(drop=True)
+
+
+def aoi_heatmap(
+    df: 'pd.DataFrame',
+    object_name: str,
+    bins: int = 50,
+    sigma_bins: float = 1.5,
+    yaw_range: Optional[Tuple[float, float]] = None,
+    pitch_range: Optional[Tuple[float, float]] = None,
+    cmap: str = 'hot',
+    figsize: Tuple[int, int] = (10, 6),
+    ax: Optional['plt.Axes'] = None,
+) -> Tuple['plt.Figure', 'plt.Axes', int]:
+    """Angular gaze heatmap restricted to samples that hit ``object_name``.
+
+    Filters the main-CSV DataFrame to rows where
+    ``GazedObjectName == object_name``, derives yaw/pitch from
+    ``CombinedDir_*``, and plots a Gaussian-smoothed 2D heatmap. Shows
+    where the participant's eyes were pointing *when looking at* the
+    object — useful both for catching tracking offsets (the heatmap
+    should center on the object's apparent direction) and for spotting
+    "looking-through" behaviours (gaze that briefly clips through one
+    object on its way to another).
+
+    Args:
+        df: Eye_lean main CSV as a DataFrame.
+        object_name: value to filter against (case-sensitive, matches
+            the Unity GameObject.name written into ``GazedObjectName``).
+        yaw_range, pitch_range: pass fixed extents to align heatmaps
+            across objects in a multi-panel figure.
+
+    Returns:
+        ``(figure, axes, n_samples_used)``.
+    """
+    _check_matplotlib()
+    col = 'GazedObjectName' if 'GazedObjectName' in df.columns else 'gazed_object_name'
+    if col not in df.columns:
+        raise ValueError(f"DataFrame has no {col!r} column")
+    sub = df[df[col].astype(str) == str(object_name)]
+    needed = ('CombinedDir_X', 'CombinedDir_Y', 'CombinedDir_Z')
+    snake = ('combined_dir_x', 'combined_dir_y', 'combined_dir_z')
+    cols = needed if all(c in df.columns for c in needed) else (snake if all(c in df.columns for c in snake) else None)
+    if cols is None:
+        raise ValueError("DataFrame missing CombinedDir_X/Y/Z columns")
+    dx = sub[cols[0]].to_numpy(dtype=float)
+    dy = sub[cols[1]].to_numpy(dtype=float)
+    dz = sub[cols[2]].to_numpy(dtype=float)
+    yaw   = np.degrees(np.arctan2(dx, dz))
+    pitch = -np.degrees(np.arcsin(np.clip(dy, -1, 1)))
+    fig, ax = gaze_heatmap_2d(
+        yaw, pitch, bins=bins, sigma_bins=sigma_bins,
+        yaw_range=yaw_range, pitch_range=pitch_range, cmap=cmap,
+        title=f"AOI heatmap — {object_name}  ({len(yaw)} samples)",
+        figsize=figsize, ax=ax,
+    )
+    return fig, ax, int(len(yaw))

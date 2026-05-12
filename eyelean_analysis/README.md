@@ -617,7 +617,14 @@ the subpackages they live in):
 
 ### Visualization
 
-- `create_heatmap(x, y, ...)`
+- `create_heatmap(x, y, ...)` — generic 2D histogram
+- `gaze_heatmap_2d(yaw, pitch, ...)` — Gaussian-smoothed angular gaze
+  heatmap
+- `gaze_heatmap_3d_projections(x, y, z, ...)` — top/front/side
+  orthographic density plots of a 3D vergence-point cloud
+- `aoi_heatmap(df, object_name, ...)` — angular heatmap restricted to
+  rows where `GazedObjectName == object_name`
+- `list_gazed_objects(df, ...)` — per-object dwell counts and seconds
 - `create_trajectory_plot(x, y, ...)`
 - `create_timeseries_plot(timestamps, values, ...)`
 - `create_fixation_plot(fixations, ...)`
