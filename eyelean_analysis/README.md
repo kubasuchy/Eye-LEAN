@@ -582,7 +582,18 @@ the subpackages they live in):
 ### Metrics
 
 - `calculate_lhipa(pupil, sample_rate)` → `LHIPAResult`
-- `calculate_gaze_entropy(x, y, ...)` → `EntropyResult`
+- `calculate_ripa2(pupil, sample_rate, ...)` → `RIPA2Result` (per-sample
+  cognitive-load index; byte-for-byte parity with the on-device
+  `LiveLoadIndex` column written by `RIPAMonitor`)
+- `fixation_entropy(fixations, horizontal_bins=8, vertical_bins=8, ...)`
+  → `FixationEntropyResult` (Shiferaw 2019 stationary gaze entropy
+  SGE + gaze transition entropy GTE over a fixation list, with
+  normalised-by-`log2(N)` variants for cross-recording comparison)
+- `calculate_gaze_entropy(x, y, ...)` → `EntropyResult` (legacy
+  raw-sample Shannon entropy; prefer `fixation_entropy` for SGE
+  per Shiferaw 2019)
+- `transition_entropy(...)` (Krejtz 2015 GTE; canonical AOI mode or
+  spatial-proxy mode for raw samples)
 - `calculate_quality_metrics(...)` → `QualityMetrics`
 
 ### Experiments
@@ -617,12 +628,27 @@ the subpackages they live in):
 - Duchowski, A. T., Krejtz, K., et al. (2018). The Index of Pupillary
   Activity: Measuring Cognitive Load vis-à-vis Task Difficulty with
   Pupil Oscillation. *CHI*.
+- Duchowski, A. T., et al. (2020). The Low/High Index of Pupillary
+  Activity. *CHI '20*. — LHIPA.
 - Duchowski, A. T., et al. (2022). Vergence calculation algorithms.
+- Jayawardena, G., Jayawardana, Y., & Gwizdka, J. (2025). RIPA2:
+  Real-time Pupil-derived Index of Cognitive Activity. *JEMR*,
+  18(6), 70.
+- Krejtz, K., Szmidt, T., Duchowski, A. T., & Krejtz, I. (2015).
+  Entropy-based statistical analysis of eye movement transitions.
+  *ACM Trans. Applied Perception*, 13(1), 4. — GTE formula and
+  normalisation convention.
 - Krejtz, K., Duchowski, A. T., et al. (2016). Eye tracking cognitive
   load using pupil diameter and microsaccades with fixed gaze.
-  *PLOS ONE*.
+  *PLOS ONE*. — K-coefficient.
 - Salvucci, D. D., & Goldberg, J. H. (2000). Identifying fixations
-  and saccades in eye-tracking protocols. *ETRA*.
+  and saccades in eye-tracking protocols. *ETRA*. — I-VT classifier
+  (with min-duration / merge-gap extensions from Olsson 2007 and
+  Komogortsev 2010).
+- Shiferaw, B., Downey, L., & Crewther, D. (2019). A review of
+  gaze entropy as a measure of visual scanning efficiency.
+  *Neurosci. Biobehav. Rev.*, 96, 353–366. — SGE/GTE conventions
+  (fixation-sequence input, log2(N) normalisation).
 
 ## Citation
 

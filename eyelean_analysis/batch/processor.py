@@ -377,9 +377,17 @@ class BatchProcessor:
             if left is None and right is None:
                 return None
 
-            # Average both eyes
+            # Average both eyes. np.nanmean over a column where both
+            # eyes are NaN raises a "Mean of empty slice" RuntimeWarning;
+            # silence by computing the column-wise mean ourselves with a
+            # divide-by-valid-count mask.
             if left is not None and right is not None:
-                pupil = np.nanmean([left, right], axis=0)
+                stacked = np.vstack([left, right]).astype(float)
+                valid = ~np.isnan(stacked)
+                counts = valid.sum(axis=0)
+                stacked_zero = np.where(valid, stacked, 0.0)
+                with np.errstate(invalid='ignore', divide='ignore'):
+                    pupil = np.where(counts > 0, stacked_zero.sum(axis=0) / counts, np.nan)
             elif left is not None:
                 pupil = left
             else:

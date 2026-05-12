@@ -1,15 +1,42 @@
 """
-Gaze entropy metrics for analyzing eye tracking data.
+Gaze entropy metrics: stationary gaze entropy (SGE) and gaze transition
+entropy (GTE) per Shiferaw, Downey & Crewther (2019).
 
-Shannon entropy measures the randomness/predictability of gaze distribution.
-Higher entropy indicates more dispersed gaze patterns (scanning), while
-lower entropy indicates more focused attention.
+- **SGE** = Shannon entropy over fixation locations binned into a
+  spatial grid. Higher SGE = more dispersed gaze. ``H = -Σ p_i log_2 p_i``
+- **GTE** = stationary-distribution-weighted conditional entropy of
+  the Markov chain over fixation-to-fixation transitions in the same
+  grid. Higher GTE = more random scanning;
+  ``H_t = -Σ_i π_i Σ_j P(j|i) log_2 P(j|i)``.
 
-Reference:
+Both are reported in bits and normalized by the chamber max entropy
+``log_2(N)`` (N = grid cells) so values are comparable across
+discretizations and recordings (Shiferaw 2019, §6.1.1-§6.1.2).
+
+**Computed over fixations, not raw samples.** The Shiferaw review is
+explicit that gaze entropy is a property of the **fixation sequence**:
+raw samples within a fixation are self-loops that deflate GTE and
+inflate the within-fixation occupancy of a single bin in SGE. The
+fixation-aware entry point is :func:`fixation_entropy`; the legacy
+raw-sample :func:`calculate_gaze_entropy` is retained for back-compat
+and now warns when called on >>fixation-count data.
+
+References:
+    Shiferaw, B., Downey, L., & Crewther, D. (2019). A review of gaze
+    entropy as a measure of visual scanning efficiency. Neurosci.
+    Biobehav. Rev., 96, 353-366.
+    https://doi.org/10.1016/j.neubiorev.2018.12.007
+
+    Krejtz, K., Szmidt, T., Duchowski, A. T., & Krejtz, I. (2015).
+    Entropy-based statistical analysis of eye movement transitions.
+    ACM Trans. Applied Perception, 13(1), 4.
+    https://doi.org/10.1145/2834121
+
     Shannon, C. E. (1948). A Mathematical Theory of Communication.
     Bell System Technical Journal, 27(3), 379-423.
-    https://doi.org/10.1002/j.1538-7305.1948.tb01338.x
 """
+
+import warnings
 
 import numpy as np
 from typing import Optional, Tuple, Dict, List, Union
@@ -538,6 +565,158 @@ def transition_entropy(gaze_x: Optional[np.ndarray] = None,
     return _transition_entropy_from_sequence(
         bin_indices.astype(np.int64),
         horizontal_bins * vertical_bins,
+    )
+
+
+@dataclass
+class FixationEntropyResult:
+    """SGE + GTE computed over a fixation centroid sequence.
+
+    Both metrics are in bits. Normalized variants divide by
+    ``log_2(N)`` where N is the grid size, so they live in [0, 1] and
+    are comparable across discretizations and recordings (Shiferaw
+    2019, §6.1.2).
+    """
+
+    sge: float
+    sge_normalized: float
+    gte: float
+    gte_normalized: float
+    n_fixations: int
+    n_bins_total: int
+    n_bins_used: int
+    horizontal_bins: int
+    vertical_bins: int
+    is_valid: bool
+    error_message: Optional[str] = None
+
+
+def fixation_entropy(
+    fixations: List["object"],
+    horizontal_bins: int = 8,
+    vertical_bins: int = 8,
+    x_range: Optional[Tuple[float, float]] = None,
+    y_range: Optional[Tuple[float, float]] = None,
+) -> FixationEntropyResult:
+    """Stationary + transition gaze entropy from a fixation list.
+
+    Bins each fixation centroid into a ``horizontal_bins × vertical_bins``
+    grid, then computes:
+
+    - **SGE** — Shannon entropy of the fixation-location distribution.
+    - **GTE** — Markov-chain conditional entropy of the
+      fixation-to-fixation transition sequence in the same grid.
+
+    Both raw (bits) and normalized-by-log2(N) variants are returned.
+    Convention follows Krejtz 2015 (within-state transitions observed
+    ⇒ Hmax = log2(N), not log2(N-1)).
+
+    Args:
+        fixations: Sequence of Fixation objects (from
+            :func:`detect_eye_movements`). Order matters — transitions
+            are read off as consecutive pairs.
+        horizontal_bins, vertical_bins: Grid dimensions. The default
+            8×8 is a defensible mid-range for HMD field of view; pick
+            something coarser for short trials (fewer fixations need
+            fewer state spaces to avoid sparsity bias) and finer when
+            comparing dense scanpaths.
+        x_range, y_range: Optional ``(min, max)`` extents for binning.
+            If None, the extents are taken from the data — note that
+            data-extent binning makes Hmax structurally larger for
+            recordings with more dispersed fixations, biasing
+            cross-recording comparisons. For cross-recording
+            comparability pass fixed (e.g. HMD FOV) extents.
+
+    Returns:
+        :class:`FixationEntropyResult`. ``is_valid`` is True iff at
+        least 2 fixations were available.
+
+    Notes:
+        For short trials (< 5 × N transitions, where N is the number
+        of grid cells), the empirical GTE estimate has known
+        finite-sample bias (Miller-Madow / NSB). The raw value is
+        still useful for **within-session phase comparisons** but
+        should be reported with the fixation count so readers can
+        weight accordingly.
+
+    Example:
+        >>> from eyelean_analysis import detect_eye_movements
+        >>> from eyelean_analysis.metrics.entropy import fixation_entropy
+        >>> mv = detect_eye_movements(yaw, pitch, ts, velocity_threshold=50)
+        >>> r = fixation_entropy(mv['fixations'], horizontal_bins=8, vertical_bins=8)
+        >>> print(f"SGE={r.sge:.2f} (norm {r.sge_normalized:.2f})  "
+        ...       f"GTE={r.gte:.2f} (norm {r.gte_normalized:.2f})")
+    """
+    n_total = int(horizontal_bins) * int(vertical_bins)
+    if not fixations or len(fixations) < 2 or n_total < 2:
+        return FixationEntropyResult(
+            sge=0.0, sge_normalized=0.0, gte=0.0, gte_normalized=0.0,
+            n_fixations=len(fixations) if fixations else 0,
+            n_bins_total=n_total, n_bins_used=0,
+            horizontal_bins=int(horizontal_bins),
+            vertical_bins=int(vertical_bins),
+            is_valid=False,
+            error_message="need >=2 fixations and >=2 bins",
+        )
+
+    cx = np.asarray([f.centroid_x for f in fixations], dtype=np.float64)
+    cy = np.asarray([f.centroid_y for f in fixations], dtype=np.float64)
+    mask = ~(np.isnan(cx) | np.isnan(cy))
+    cx, cy = cx[mask], cy[mask]
+    if len(cx) < 2:
+        return FixationEntropyResult(
+            sge=0.0, sge_normalized=0.0, gte=0.0, gte_normalized=0.0,
+            n_fixations=int(len(cx)),
+            n_bins_total=n_total, n_bins_used=0,
+            horizontal_bins=int(horizontal_bins),
+            vertical_bins=int(vertical_bins),
+            is_valid=False,
+            error_message="no valid centroids",
+        )
+
+    if x_range is None:
+        x_min, x_max = float(cx.min()), float(cx.max())
+        if x_max <= x_min:
+            x_max = x_min + 1e-6
+    else:
+        x_min, x_max = float(x_range[0]), float(x_range[1])
+    if y_range is None:
+        y_min, y_max = float(cy.min()), float(cy.max())
+        if y_max <= y_min:
+            y_max = y_min + 1e-6
+    else:
+        y_min, y_max = float(y_range[0]), float(y_range[1])
+
+    xi = np.clip(((cx - x_min) / (x_max - x_min) * horizontal_bins).astype(int),
+                 0, horizontal_bins - 1)
+    yi = np.clip(((cy - y_min) / (y_max - y_min) * vertical_bins).astype(int),
+                 0, vertical_bins - 1)
+    bin_idx = xi * vertical_bins + yi
+
+    # SGE: Shannon entropy of fixation-location histogram.
+    counts = np.bincount(bin_idx, minlength=n_total).astype(np.float64)
+    occupied = counts > 0
+    n_used = int(occupied.sum())
+    p = counts[occupied] / counts.sum()
+    sge = float(-np.sum(p * np.log2(p)))
+
+    # GTE: Markov conditional entropy on bin-transition sequence
+    # (Krejtz 2015 — same _transition_entropy_from_sequence the public
+    # transition_entropy() function uses internally).
+    gte = _transition_entropy_from_sequence(bin_idx.astype(np.int64), n_total)
+
+    hmax = float(np.log2(n_total))
+    return FixationEntropyResult(
+        sge=sge,
+        sge_normalized=(sge / hmax) if hmax > 0 else 0.0,
+        gte=gte,
+        gte_normalized=(gte / hmax) if hmax > 0 else 0.0,
+        n_fixations=int(len(cx)),
+        n_bins_total=n_total,
+        n_bins_used=n_used,
+        horizontal_bins=int(horizontal_bins),
+        vertical_bins=int(vertical_bins),
+        is_valid=True,
     )
 
 

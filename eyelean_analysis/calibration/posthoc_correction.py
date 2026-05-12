@@ -235,7 +235,7 @@ def apply_profile_to_csv(
     profile = load_profile(profile_path)
 
     metadata_lines, header_line, data_text = _split_csv_sections(csv_in)
-    df = pd.read_csv(csv_in, comment="#")
+    df = pd.read_csv(csv_in, comment="#", low_memory=False)
 
     stats = {
         "samples_total": len(df),

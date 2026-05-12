@@ -17,8 +17,10 @@ from .ripa2 import (
 from .entropy import (
     GazeEntropyCalculator,
     EntropyResult,
+    FixationEntropyResult,
     calculate_gaze_entropy,
     entropy_timeseries,
+    fixation_entropy,
     stationary_entropy,
     transition_entropy,
 )
@@ -46,8 +48,10 @@ __all__ = [
     # Entropy
     "GazeEntropyCalculator",
     "EntropyResult",
+    "FixationEntropyResult",
     "calculate_gaze_entropy",
     "entropy_timeseries",
+    "fixation_entropy",
     "stationary_entropy",
     "transition_entropy",
     # Data quality

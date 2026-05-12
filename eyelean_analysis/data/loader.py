@@ -228,6 +228,13 @@ class EyeLeanLoader:
         # `comment='#'` the first metadata line is mis-read as the column header.
         # Caller-supplied `comment=` wins.
         pandas_kwargs.setdefault('comment', '#')
+        # Several metadata-tail columns (TrialId, target/AOI hash strings,
+        # per-frame quality flags) flip dtype between numeric and object
+        # mid-file when an experiment phase changes. pandas' chunked
+        # type-inference then emits DtypeWarning on every load; reading
+        # the whole file at once and inferring dtypes once silences this
+        # for typical session lengths without measurable cost.
+        pandas_kwargs.setdefault('low_memory', False)
         # Eye_lean CSVs may also have inconsistent column counts if custom
         # metadata was added mid-session. Try normal parsing; on failure, retry
         # with on_bad_lines='warn' and count skipped rows for the user.

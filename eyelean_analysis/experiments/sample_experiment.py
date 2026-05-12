@@ -1,16 +1,16 @@
 """Per-phase report for SampleExperiment CSVs.
 
-`SampleExperiment.unity` runs a six-phase battery (CalibrationCheck,
-FreeExploration, VisualSearch, SmoothPursuit, CountingTask, ChangeDetection)
-and tags each row with `CurrentPhase`. This module slices the CSV by phase,
-computes the metrics that make sense for each, and — when the matching
-`experiment_results_*.json` is available — joins per-trial summaries into
-the report.
+`SampleExperimentController` runs the four-phase battery
+(FreeExploration, VisualSearch, CountingTask, ChangeDetection) and
+tags each row with `CurrentPhase`. The controller can additionally
+emit `CalibrationCheck` and `SmoothPursuit` phases if a custom
+launcher wires them up; this module recognises all six names. It
+slices the CSV by phase, computes the metrics that make sense for
+each, and — when the matching `experiment_results_*.json` is
+available — joins per-trial summaries into the report.
 
-Designed to degrade gracefully: missing columns and short-duration phases
-produce a `missing_metrics` list rather than an exception. The contract
-between the Unity controller and this module is documented in
-`INTERNAL/sample_experiment_e1_audit.md`.
+Designed to degrade gracefully: missing columns and short-duration
+phases produce a `missing_metrics` list rather than an exception.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ import pandas as pd
 
 from ..classification.velocity_classifier import detect_eye_movements
 from ..data.loader import EyeLeanData, EyeLeanLoader
-from ..metrics.entropy import calculate_gaze_entropy
+from ..metrics.entropy import fixation_entropy
 from ..metrics.lhipa import calculate_lhipa
 
 
@@ -54,6 +54,17 @@ class PhaseReport:
     n_fixations: Optional[int] = None
     mean_fixation_duration_s: Optional[float] = None
     scanpath_length_deg: Optional[float] = None
+    # Stationary gaze entropy (SGE) and gaze transition entropy (GTE)
+    # over fixation centroids in an 8×8 grid per Shiferaw 2019.
+    # `*_normalized` divides by log2(N=64) so values are in [0, 1].
+    sge_bits: Optional[float] = None
+    sge_normalized: Optional[float] = None
+    gte_bits: Optional[float] = None
+    gte_normalized: Optional[float] = None
+    # Back-compat alias: equal to `sge_bits` so existing notebooks /
+    # downstream code that read `gaze_entropy_bits` keep working. The
+    # legacy field used to be computed over raw samples; the value
+    # under it now is the Shiferaw-correct fixation-based SGE.
     gaze_entropy_bits: Optional[float] = None
 
     # Pupil metrics — populated if the CSV has pupil-diameter columns and the
@@ -94,7 +105,10 @@ class SampleExperimentReport:
                 "n_fixations": r.n_fixations,
                 "mean_fixation_duration_s": r.mean_fixation_duration_s,
                 "scanpath_length_deg": r.scanpath_length_deg,
-                "gaze_entropy_bits": r.gaze_entropy_bits,
+                "sge_bits": r.sge_bits,
+                "sge_normalized": r.sge_normalized,
+                "gte_bits": r.gte_bits,
+                "gte_normalized": r.gte_normalized,
                 "lhipa": r.lhipa,
                 "n_trials": len(r.trials),
                 "missing_metrics": ", ".join(r.missing_metrics),
@@ -216,9 +230,15 @@ def _fill_gaze_metrics(report: PhaseReport, data: EyeLeanData) -> None:
         d_pitch = np.diff(pitch_deg)
         report.scanpath_length_deg = float(np.sum(np.hypot(d_yaw, d_pitch)))
 
-    entropy = calculate_gaze_entropy(yaw_deg, pitch_deg)
-    if entropy.is_valid:
-        report.gaze_entropy_bits = float(entropy.entropy)
+    # Shiferaw 2019 SGE/GTE — over fixation centroids, not raw samples.
+    # Falls back to is_valid=False for phases with < 2 fixations.
+    ent = fixation_entropy(fixations, horizontal_bins=8, vertical_bins=8)
+    if ent.is_valid:
+        report.sge_bits        = float(ent.sge)
+        report.sge_normalized  = float(ent.sge_normalized)
+        report.gte_bits        = float(ent.gte)
+        report.gte_normalized  = float(ent.gte_normalized)
+        report.gaze_entropy_bits = float(ent.sge)  # back-compat alias
 
 
 def _fill_pupil_metrics(report: PhaseReport, data: EyeLeanData) -> None:

@@ -26,6 +26,8 @@ Reference:
     Applied Perception, 13(3), 11:1-11:20. https://doi.org/10.1145/2896452
 """
 
+import warnings
+
 import numpy as np
 from typing import Optional, List, Tuple, Dict, Union
 from dataclasses import dataclass
@@ -86,7 +88,11 @@ class KCoefficientCalculator:
                  dead_zone: float = 0.0,
                  velocity_threshold: float = 50.0,
                  min_fixation_duration: float = 0.1,
-                 window_size: int = 30):
+                 window_size: int = 30,
+                 # Deprecated aliases retained for back-compat with v1.0.x;
+                 # if either is set non-None it is mapped onto `dead_zone`.
+                 focal_threshold: Optional[float] = None,
+                 ambient_threshold: Optional[float] = None):
         """
         Initialize the K-coefficient calculator.
 
@@ -97,8 +103,27 @@ class KCoefficientCalculator:
             velocity_threshold: Velocity threshold for fixation/saccade detection.
             min_fixation_duration: Minimum fixation duration in seconds.
             window_size: Number of events to use for calculation.
+            focal_threshold, ambient_threshold: deprecated aliases for
+                `dead_zone`. Pass `dead_zone=` instead. Krejtz 2016
+                classification is sign-based (`dead_zone=0`); any
+                magnitude threshold is a visualization-only neutral
+                band.
         """
+        if focal_threshold is not None or ambient_threshold is not None:
+            warnings.warn(
+                "focal_threshold/ambient_threshold are deprecated in favour of "
+                "`dead_zone` (sign-based classification per Krejtz 2016).",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            chosen = focal_threshold if focal_threshold is not None else ambient_threshold
+            dead_zone = float(chosen) if chosen is not None else dead_zone
         self.dead_zone = float(dead_zone)
+        # Back-compat aliases — kept on the instance so old code still
+        # reading `.focal_threshold` doesn't AttributeError. They mirror
+        # `dead_zone` and are equal by construction (sign-based fit).
+        self.focal_threshold = self.dead_zone
+        self.ambient_threshold = self.dead_zone
         self.velocity_threshold = velocity_threshold
         self.min_fixation_duration = min_fixation_duration
         self.window_size = window_size
@@ -178,11 +203,24 @@ class KCoefficientCalculator:
             mean_duration, std_duration, mean_amplitude, std_amplitude = (
                 float(x) for x in pooled_stats
             )
+            local_stats = False
         else:
             mean_duration  = float(durations.mean())
             mean_amplitude = float(amplitudes.mean())
             std_duration   = float(durations.std(ddof=1))
             std_amplitude  = float(amplitudes.std(ddof=1))
+            local_stats = True
+            warnings.warn(
+                "K-coefficient computed without pooled_stats: the mean of "
+                "z-scores over the same set used to estimate (μ, σ) is "
+                "identically zero (mod floating-point). The returned K is "
+                "not interpretable. Pass `pooled_stats=(mean_d, std_d, "
+                "mean_a, std_a)` from a session-global reference, or use "
+                "`calculate_per_window()`. See Krejtz 2016 Eq. 1 and the "
+                "module docstring.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         # If either spread is degenerate (constant duration or constant
         # amplitude across all pairs) the z-score is undefined. Krejtz
@@ -204,7 +242,12 @@ class KCoefficientCalculator:
         k_values = z_a - z_d
         k_coefficient = float(np.nanmean(k_values))
 
-        attention_type = self._classify_attention(k_coefficient)
+        # K computed against local stats is zero by construction; the sign
+        # is floating-point noise and must not be used to classify.
+        if local_stats:
+            attention_type = AttentionType.UNKNOWN
+        else:
+            attention_type = self._classify_attention(k_coefficient)
 
         return KCoefficientResult(
             k_coefficient=k_coefficient,
@@ -417,6 +460,22 @@ class KCoefficientCalculator:
             window_start=timestamps[0] if timestamps is not None and len(timestamps) > 0 else None,
             window_end=timestamps[-1] if timestamps is not None and len(timestamps) > 0 else None,
         )
+
+    def calculate_velocity_based(self,
+                                 velocity: np.ndarray,
+                                 timestamps: Optional[np.ndarray] = None) -> KCoefficientResult:
+        """Deprecated alias for `velocity_based_attention_proxy`. The
+        original name implied this was the K-coefficient, which it is
+        not — see Krejtz 2016 Eq. 1 vs the velocity-band heuristic in
+        the renamed method's docstring."""
+        warnings.warn(
+            "calculate_velocity_based is renamed to velocity_based_attention_proxy "
+            "to clarify that the velocity-band mapping is NOT the Krejtz "
+            "K-coefficient. This alias will be removed in v1.2.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.velocity_based_attention_proxy(velocity, timestamps)
 
     def _classify_attention(self, k: float) -> AttentionType:
         """Classify attention type based on K-coefficient sign.

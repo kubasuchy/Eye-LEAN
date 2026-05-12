@@ -106,7 +106,11 @@ def test_gaze_metrics_populated(synthetic_sample_experiment):
     for phase, r in report.phases.items():
         assert r.n_fixations is not None, f"{phase} missing fixation count"
         assert r.scanpath_length_deg is not None, f"{phase} missing scanpath"
-        assert r.gaze_entropy_bits is not None, f"{phase} missing entropy"
+        # SGE/GTE need >=2 fixations; allow None for phases with too few.
+        if r.n_fixations and r.n_fixations >= 2:
+            assert r.sge_bits is not None, f"{phase} missing SGE"
+            assert r.gte_bits is not None, f"{phase} missing GTE"
+            assert r.gaze_entropy_bits == r.sge_bits  # back-compat alias
 
 
 def test_visual_search_trials_joined_from_json(synthetic_sample_experiment):

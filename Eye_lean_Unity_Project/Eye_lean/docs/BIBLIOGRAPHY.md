@@ -109,6 +109,44 @@ Brown (1963) covers the textbook EMA recursion only — i.e. the final blend `y_
 }
 ```
 
+### Gaze Transition Entropy (GTE)
+
+The transition-entropy formula and the `Hmax = log2(N)` normalisation
+convention used by `eyelean_analysis.metrics.entropy.fixation_entropy`
+follow Krejtz 2015.
+
+```bibtex
+@article{krejtz2015gaze,
+  title  = {Entropy-based statistical analysis of eye movement transitions},
+  author = {Krejtz, Krzysztof and Szmidt, Tomasz and Duchowski, Andrew T and Krejtz, Izabela},
+  journal = {ACM Transactions on Applied Perception},
+  volume = {13},
+  number = {1},
+  pages  = {4:1--4:20},
+  year   = {2015},
+  doi    = {10.1145/2834121}
+}
+```
+
+### Gaze Entropy as a Measure of Visual Scanning Efficiency (review)
+
+The Shiferaw 2019 review consolidates the SGE/GTE conventions
+Eye_lean follows: entropy is a property of the **fixation sequence**
+(not raw samples), and both raw bits and normalised-by-`log2(N)`
+values are reported so results compare across discretisations.
+
+```bibtex
+@article{shiferaw2019review,
+  title  = {A review of gaze entropy as a measure of visual scanning efficiency},
+  author = {Shiferaw, Brook and Downey, Luke and Crewther, David},
+  journal = {Neuroscience \& Biobehavioral Reviews},
+  volume = {96},
+  pages  = {353--366},
+  year   = {2019},
+  doi    = {10.1016/j.neubiorev.2018.12.007}
+}
+```
+
 ---
 
 ## Hardware & SDK Documentation
@@ -164,7 +202,7 @@ Brown (1963) covers the textbook EMA recursion only — i.e. the final blend `y_
 ## TODO: Citations to Add
 
 - [x] ~~Confirm full citation for "3D Gaze in Virtual Reality" paper~~ (Duchowski et al., 2022)
-- [ ] Add citations for gaze entropy analysis methods if based on prior work
+- [x] ~~Add citations for gaze entropy analysis methods if based on prior work~~ (Krejtz 2015 + Shiferaw, Downey & Crewther 2019; see entries above)
 - [ ] Add Unity 6 documentation references
 - [ ] Add any additional eye tracking validation methodology papers
 

@@ -290,10 +290,12 @@ notebook expects them in `Logs/` at the repo root.
 ```
 
 See [`CITATION.cff`](CITATION.cff) for the machine-readable form. Please also
-cite the underlying algorithms (RIPA2 — Jayawardena 2025; LHIPA — Duchowski
-2018; Rocketbox avatars — Gonzalez-Franco 2020) when the corresponding feature
-contributed to your analysis. [`ACKNOWLEDGMENTS.md`](ACKNOWLEDGMENTS.md) has
-the full list.
+cite the underlying algorithms when the corresponding feature contributed
+to your analysis — RIPA2 (Jayawardena, Jayawardana & Gwizdka 2025), LHIPA
+(Duchowski et al. 2020), K-coefficient (Krejtz et al. 2016, PLoS ONE),
+SGE / GTE (Krejtz et al. 2015 + Shiferaw, Downey & Crewther 2019), I-VT
+(Salvucci & Goldberg 2000), Rocketbox avatars (Gonzalez-Franco et al. 2020).
+[`ACKNOWLEDGMENTS.md`](ACKNOWLEDGMENTS.md) has the full list.
 
 ## Authors
 

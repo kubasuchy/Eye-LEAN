@@ -368,21 +368,46 @@ y[n] = Σ(coeff[i] * x[n-windowSize+i]) for i = 0 to windowSize-1
 
 ## Gaze Entropy Analysis
 
-**Implementation**: `GazeEntropyCalculator.cs:737-769`
+**Unity (live monitor)**: `GazeEntropyCalculator.cs:737-769` — raw-sample
+spherical-grid Shannon entropy, used for the live dispersion HUD.
 
-**Reference**: Shannon (1948)
+**Python (offline / reportable)**: `eyelean_analysis.metrics.entropy.fixation_entropy`
+— SGE + GTE over a fixation list per Shiferaw 2019. Returns both raw
+bits and normalised-by-`log2(N)` values so results compare across
+discretisations and recordings.
 
-Measures the dispersion/randomness of gaze distribution.
+**References**:
+- Shannon (1948) — base entropy formula.
+- Krejtz et al. (2015), *ACM TAP* 13(1):4 — gaze transition entropy
+  (GTE) formulation and the `Hmax = log2(N)` normalisation used in
+  Eye_lean.
+- Shiferaw, Downey & Crewther (2019), *Neurosci. Biobehav. Rev.* 96 —
+  review establishing that gaze entropy is a property of the
+  **fixation sequence** (raw samples deflate GTE through self-loops)
+  and that SGE + GTE should be reported jointly.
 
-### Shannon Entropy Formula
+### Stationary Gaze Entropy (SGE)
 
 ```
-H = -Σ(p_i * log₂(p_i))
+SGE = -Σ p_i · log₂(p_i)              over fixation-location bins
+SGE_normalised = SGE / log₂(N)        ∈ [0, 1]
 ```
 
-Where `p_i` is the probability of gaze in bin `i`.
+Higher SGE = more dispersed fixation distribution.
 
-### Spherical Discretization
+### Gaze Transition Entropy (GTE)
+
+```
+GTE = -Σ_i π_i Σ_j P(j|i) · log₂ P(j|i)    over fixation-to-fixation
+                                              transitions in the same grid
+GTE_normalised = GTE / log₂(N)         ∈ [0, 1]
+```
+
+Higher GTE = less predictable scanning. The Krejtz 2015 convention
+treats within-state transitions as observed, so `Hmax = log₂(N)`
+(not `log₂(N−1)` as in Weiss 1989).
+
+### Spherical Discretization (Unity live monitor)
 
 Gaze directions are converted to spherical coordinates and binned:
 
@@ -398,9 +423,10 @@ pitch_bin = floor((pitch + π/2) / π * num_vertical_bins)
 ```
 
 ### Parameters
-- Time window: 0.5 - 10 seconds
-- Horizontal bins: 4 - 36
-- Vertical bins: 4 - 36
+- Time window: 0.5 - 10 seconds (live monitor)
+- Horizontal bins: 4 - 36 (live monitor); default 8 in
+  `fixation_entropy` for HMD field of view
+- Vertical bins: 4 - 36 (live monitor); default 8 in `fixation_entropy`
 
 ---
 

@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 title: "EYE-LEAN (Locomotion, Exploration, Action and Navigation with Eye Tracking): a Behavioral Research Toolkit for Data Rich Virtual Reality Experiments"
-message: "If you use Eye_lean in research, please cite this toolkit and the underlying algorithms (LHIPA: Duchowski 2018; RIPA2: Jayawardena 2025)."
+message: "If you use Eye_lean in research, please cite this toolkit and the underlying algorithms (LHIPA: Duchowski 2020; RIPA2: Jayawardena, Jayawardana & Gwizdka 2025; K-coefficient: Krejtz 2016 PLoS ONE; SGE/GTE: Krejtz 2015 + Shiferaw, Downey & Crewther 2019; I-VT: Salvucci & Goldberg 2000)."
 type: software
 authors:
   - family-names: Suchojad

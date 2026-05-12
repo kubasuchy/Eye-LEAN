@@ -81,14 +81,31 @@ Gwizdka 2025 itself.
   <https://doi.org/10.1371/journal.pone.0163087> — K-coefficient,
   implemented in
   `eyelean_analysis.classification.k_coefficient`.
+- **Krejtz, K., Szmidt, T., Duchowski, A. T., & Krejtz, I.** (2015).
+  Entropy-based statistical analysis of eye movement transitions.
+  *ACM Trans. Applied Perception*, 13(1), 4.
+  <https://doi.org/10.1145/2834121> — gaze transition entropy
+  (GTE) formula and the `Hmax = log2(N)` normalisation convention
+  used by `eyelean_analysis.metrics.entropy.fixation_entropy` and
+  `transition_entropy`.
 - **Krejtz, K., Duchowski, A., Krejtz, I., Kopacz, A., &
   Chrząstowski-Wachtel, P.** (2016). Gaze transition entropy.
-  *ETRA '16*, 191–194. — basis for
-  `eyelean_analysis.metrics.entropy.transition_entropy`.
+  *ETRA '16*, 191–194. — companion piece extending the 2015
+  formulation; cited alongside the 2015 paper.
+- **Shiferaw, B., Downey, L., & Crewther, D.** (2019). A review of
+  gaze entropy as a measure of visual scanning efficiency.
+  *Neuroscience & Biobehavioral Reviews*, 96, 353–366.
+  <https://doi.org/10.1016/j.neubiorev.2018.12.007> — review that
+  consolidates the SGE/GTE conventions Eye_lean follows: entropy is
+  a property of the **fixation sequence** (not raw samples), and
+  both raw bits and normalised-by-`log2(N)` values are reported so
+  results compare across discretisations. Driving reference for
+  `fixation_entropy`.
 - **Shannon, C. E.** (1948). A Mathematical Theory of Communication.
   *Bell System Tech. J.*, 27(3), 379–423.
-  <https://doi.org/10.1002/j.1538-7305.1948.tb01338.x> — basis for
-  `GazeEntropyCalculator` and the stationary-entropy helper.
+  <https://doi.org/10.1002/j.1538-7305.1948.tb01338.x> — Shannon
+  entropy used by `fixation_entropy` (SGE branch) and the legacy
+  `GazeEntropyCalculator`/`stationary_entropy` raw-sample helpers.
 
 ## Vergence-point smoothing
 
@@ -198,8 +215,9 @@ your analysis:
 |---|---|
 | `LiveLoadIndex` / `RIPAMonitor` | Jayawardena, Jayawardana, & Gwizdka 2025 |
 | `eyelean_analysis.metrics.lhipa` | Duchowski et al. 2018 |
+| `eyelean_analysis.metrics.entropy.fixation_entropy` (SGE+GTE) | Krejtz et al. 2015 + Shiferaw, Downey & Crewther 2019 |
 | `eyelean_analysis.metrics.entropy.stationary_entropy` | Shannon 1948 |
-| `eyelean_analysis.metrics.entropy.transition_entropy` | Krejtz et al. 2016 (ETRA) + Shannon 1948 |
+| `eyelean_analysis.metrics.entropy.transition_entropy` | Krejtz et al. 2015 + Shannon 1948 |
 | `eyelean_analysis.classification.k_coefficient` | Krejtz et al. 2016 (PLoS ONE) |
 | `eyelean_analysis.classification.velocity_classifier` | Salvucci & Goldberg 2000 |
 | `eyelean_analysis.filters.savitzky_golay` | Savitzky & Golay 1964 |
