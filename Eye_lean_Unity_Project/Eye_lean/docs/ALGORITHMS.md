@@ -404,8 +404,7 @@ GTE_normalised = GTE / log₂(N)         ∈ [0, 1]
 ```
 
 Higher GTE = less predictable scanning. The Krejtz 2015 convention
-treats within-state transitions as observed, so `Hmax = log₂(N)`
-(not `log₂(N−1)` as in Weiss 1989).
+treats within-state transitions as observed, so `Hmax = log₂(N)`.
 
 ### Spherical Discretization (Unity live monitor)
 
@@ -459,4 +458,4 @@ Ensures the vergence point is in front of the user.
 
 ---
 
-*Last updated: 2025-12-21*
+*Last updated: 2026-05-13*

@@ -120,7 +120,7 @@ class LHIPACalculator:
 
     Implements the paper's Listing 1: discrete wavelet decomposition with
     Symlets-16, paired detail-coefficient bands at j_HF = 1 and
-    j_LF = floor(log2(maxlevel) / 2), per-sample LF/HF coefficient
+    j_LF = floor(maxlevel / 2), per-sample LF/HF coefficient
     ratio, modulus maxima, Donoho universal threshold, and count of
     survivors normalised by duration. **Lower LHIPA = higher cognitive
     load** (paper §4).

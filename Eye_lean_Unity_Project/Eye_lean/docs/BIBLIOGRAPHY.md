@@ -25,6 +25,37 @@ References and citations for algorithms and methods used in the VR Eye Tracking 
 
 This paper provides the mathematical foundation for the "Paper Algorithm" vergence calculation method, including vector-vector intersection for gaze depth estimation.
 
+### Eye-Tracking Methodology
+
+```bibtex
+@book{holmqvist2011eyetracking,
+  title     = {Eye Tracking: A Comprehensive Guide to Methods and Measures},
+  author    = {Holmqvist, Kenneth and Nystr{\"o}m, Marcus and Andersson, Richard and Dewhurst, Richard and Jarodzka, Halszka and van de Weijer, Joost},
+  year      = {2011},
+  publisher = {Oxford University Press},
+  isbn      = {9780199697083}
+}
+```
+
+Methodology basis for the calibrator's fixation / saccade / smooth-pursuit
+tests and the settled-vs-transition sample handling in `CalibrationTestRunner`.
+
+### Fixation / Saccade Classification (I-VT)
+
+```bibtex
+@inproceedings{salvucci2000identifying,
+  title     = {Identifying fixations and saccades in eye-tracking protocols},
+  author    = {Salvucci, Dario D. and Goldberg, Joseph H.},
+  booktitle = {Proceedings of the 2000 Symposium on Eye Tracking Research \& Applications (ETRA '00)},
+  pages     = {71--78},
+  year      = {2000},
+  publisher = {ACM},
+  doi       = {10.1145/355017.355028}
+}
+```
+
+Reference algorithm for `eyelean_analysis.classification.velocity_classifier`.
+
 ### OpenXR Eye Tracking
 
 ```bibtex
@@ -92,6 +123,59 @@ Brown (1963) covers the textbook EMA recursion only — i.e. the final blend `y_
 
 ---
 
+## Pupillometry — Cognitive Load
+
+### LHIPA / IPA (offline, wavelet-based)
+
+```bibtex
+@inproceedings{duchowski2020lhipa,
+  title     = {The Low/High Index of Pupillary Activity},
+  author    = {Duchowski, Andrew T. and Krejtz, Krzysztof and Wnuk, Justyna and Sankarasubramanian, Krishnamoorthy and Andersson, Richard and Krejtz, Izabela},
+  booktitle = {Proceedings of the 2020 CHI Conference on Human Factors in Computing Systems (CHI '20)},
+  pages     = {1--12},
+  year      = {2020},
+  publisher = {ACM},
+  doi       = {10.1145/3313831.3376394}
+}
+
+@inproceedings{duchowski2018ipa,
+  title     = {The Index of Pupillary Activity: Measuring Cognitive Load Vis-{\`a}-Vis Task Difficulty with Pupil Oscillation of Pupil Diameter},
+  author    = {Duchowski, Andrew T. and Krejtz, Krzysztof and Krejtz, Izabela and Biele, Cezary and Niedzielska, Anna and Kiefer, Peter and Raubal, Martin and Giannopoulos, Ioannis},
+  booktitle = {Proceedings of the 2018 CHI Conference on Human Factors in Computing Systems (CHI '18)},
+  pages     = {1--13},
+  year      = {2018},
+  publisher = {ACM},
+  doi       = {10.1145/3173574.3173856}
+}
+```
+
+Implemented in `eyelean_analysis.metrics.lhipa`. The LHIPA module
+follows Duchowski 2020 Listing 1 (Symlets-16, paired
+`j_HF = 1` / `j_LF = floor(maxlevel / 2)` detail bands, modulus
+maxima count against Donoho's universal threshold).
+
+### RIPA2 (on-device, real-time)
+
+```bibtex
+@article{jayawardena2025ripa2,
+  title   = {Measuring Mental Effort in Real Time Using Pupillometry},
+  author  = {Jayawardena, Gavindya and Jayawardana, Yasith and Gwizdka, Jacek},
+  journal = {Journal of Eye Movement Research},
+  volume  = {18},
+  number  = {6},
+  pages   = {70},
+  year    = {2025},
+  doi     = {10.3390/jemr18060070}
+}
+```
+
+Implemented as `RIPAMonitor` / `RIPA2Analyzer` on the Unity side. VLF
+≈ 0.29 Hz / LF ≈ 4 Hz Savitzky–Golay derivative bands, `[0, 1.5]`
+clip range and 1–2 s smoothing window are taken from the paper. The
+`LiveLoadIndex` CSV column is the per-sample RIPA2 output.
+
+---
+
 ## Information Theory
 
 ### Shannon Entropy
@@ -149,6 +233,48 @@ values are reported so results compare across discretisations.
 
 ---
 
+## Attention Metrics
+
+### K-Coefficient (ambient ↔ focal attention)
+
+```bibtex
+@article{krejtz2016kcoefficient,
+  title   = {Eye tracking cognitive load using pupil diameter and microsaccades with fixed gaze},
+  author  = {Krejtz, Krzysztof and Duchowski, Andrew T. and Niedzielska, Anna and Biele, Cezary and Krejtz, Izabela},
+  journal = {PLoS ONE},
+  volume  = {11},
+  number  = {9},
+  pages   = {e0163087},
+  year    = {2016},
+  doi     = {10.1371/journal.pone.0163087}
+}
+```
+
+Implemented in `eyelean_analysis.classification.k_coefficient`. K > 0 ⇒
+focal attention; K < 0 ⇒ ambient. Pooled-stats convention follows
+Krejtz 2016 Eq. 1 verbatim.
+
+---
+
+## Avatars
+
+```bibtex
+@article{gonzalezfranco2020rocketbox,
+  title   = {The Rocketbox Library and the Utility of Freely Available Rigged Avatars},
+  author  = {Gonzalez-Franco, Mar and Ofek, Eyal and Pan, Ye and Antley, Angus and Steed, Anthony and Spanlang, Bernhard and Maselli, Antonella and Banakou, Domna and Pelechano, Nuria and Orts-Escolano, Sergio and others},
+  journal = {Frontiers in Virtual Reality},
+  volume  = {1},
+  pages   = {561558},
+  year    = {2020},
+  doi     = {10.3389/frvir.2020.561558}
+}
+```
+
+Avatar library `AgentManager` is designed against (CC-BY 4.0). Install
+instructions in [`docs/SKELETON_AGENTS.md`](../../docs/SKELETON_AGENTS.md).
+
+---
+
 ## Hardware & SDK Documentation
 
 ### HTC VIVE Focus Vision
@@ -199,13 +325,12 @@ values are reported so results compare across discretisations.
 
 ---
 
-## TODO: Citations to Add
-
-- [x] ~~Confirm full citation for "3D Gaze in Virtual Reality" paper~~ (Duchowski et al., 2022)
-- [x] ~~Add citations for gaze entropy analysis methods if based on prior work~~ (Krejtz 2015 + Shiferaw, Downey & Crewther 2019; see entries above)
-- [ ] Add Unity 6 documentation references
-- [ ] Add any additional eye tracking validation methodology papers
+For software dependencies, dataset attributions, and the full credits
+list with adapted-code provenance, see
+[`ACKNOWLEDGMENTS.md`](../../ACKNOWLEDGMENTS.md). For the per-algorithm
+feature-to-citation table (which paper to cite when reporting which
+output), see the *Citing Eye_lean* section of `ACKNOWLEDGMENTS.md`.
 
 ---
 
-*Last updated: 2024-12-12*
+*Last updated: 2026-05-13*
