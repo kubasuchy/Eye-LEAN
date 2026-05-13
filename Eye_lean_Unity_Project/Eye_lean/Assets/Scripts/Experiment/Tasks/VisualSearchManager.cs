@@ -83,48 +83,44 @@ namespace EyeLean.Experiment
             gazeTimeOnTarget = 0f;
             trialStartTime = Time.time;
 
-            // Wait for target acquisition or timeout
+            // Wait for target acquisition or timeout. On gaze loss, decay the
+            // accumulated dwell time instead of resetting it to zero — eye-
+            // tracking noise + microsaccades can flicker IsBeingGazedAt false
+            // for a frame or two even when the participant is still fixating,
+            // and a hard reset makes the dwell impossible to complete.
+            // Decay rate is 2× the accumulation rate, so a 100 ms blink off
+            // the target costs 200 ms of progress but recovery is possible.
+            const float GazeLossDecayMultiplier = 2.0f;
             while (!targetFound && (Time.time - trialStartTime) < config.maxTrialDuration)
             {
-                // Check if gazing at target
-                if (targetGazeComponent != null && targetGazeComponent.IsBeingGazedAt)
+                bool gazingAtTarget = targetGazeComponent != null && targetGazeComponent.IsBeingGazedAt;
+                if (gazingAtTarget)
                 {
                     gazeTimeOnTarget += Time.deltaTime;
-
-                    // Visual feedback - show progress toward acquisition
-                    if (targetRenderer != null && targetObject != null)
-                    {
-                        float progress = Mathf.Clamp01(gazeTimeOnTarget / config.targetAcquisitionTime);
-
-                        // Color feedback: red -> green as progress increases
-                        Color feedbackColor = Color.Lerp(targetColor, targetFoundColor, progress);
-                        targetRenderer.material.color = feedbackColor;
-
-                        // Scale feedback: grow slightly as progress increases
-                        float scaleMultiplier = 1f + (0.3f * progress);
-                        targetObject.transform.localScale = targetOriginalScale * scaleMultiplier;
-                    }
-
-                    if (gazeTimeOnTarget >= config.targetAcquisitionTime)
-                    {
-                        targetFound = true;
-                        // Final found state - bright green and larger
-                        if (targetRenderer != null)
-                        {
-                            targetRenderer.material.color = targetFoundColor;
-                        }
-                    }
                 }
                 else
                 {
-                    // Reset if gaze leaves target
-                    gazeTimeOnTarget = 0f;
+                    gazeTimeOnTarget -= Time.deltaTime * GazeLossDecayMultiplier;
+                    if (gazeTimeOnTarget < 0f) gazeTimeOnTarget = 0f;
+                }
 
-                    // Reset visual feedback
-                    if (targetRenderer != null && targetObject != null)
+                // Visual feedback always follows the current progress so the
+                // ramp-up and ramp-down are continuous rather than snapping.
+                if (targetRenderer != null && targetObject != null)
+                {
+                    float progress = Mathf.Clamp01(gazeTimeOnTarget / config.targetAcquisitionTime);
+                    Color feedbackColor = Color.Lerp(targetColor, targetFoundColor, progress);
+                    targetRenderer.material.color = feedbackColor;
+                    float scaleMultiplier = 1f + (0.3f * progress);
+                    targetObject.transform.localScale = targetOriginalScale * scaleMultiplier;
+                }
+
+                if (gazeTimeOnTarget >= config.targetAcquisitionTime)
+                {
+                    targetFound = true;
+                    if (targetRenderer != null)
                     {
-                        targetRenderer.material.color = targetColor;
-                        targetObject.transform.localScale = targetOriginalScale;
+                        targetRenderer.material.color = targetFoundColor;
                     }
                 }
 

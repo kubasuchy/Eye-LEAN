@@ -1,10 +1,19 @@
 # RIPA Monitor — real-time pupillary cognitive-load index
 
 Per-frame cognitive-load index from the live pupil-diameter stream, published
-to listeners and to the `LiveLoadIndex` CSV column. Metric is **RIPA2**
-(Jayawardena, Jayawardana & Gwizdka 2025). The bootstrap auto-spawns a
-monitor in every scene at `AfterSceneLoad` and attaches a `RIPACSVColumn` so
-the CSV gains the column without manual wiring.
+to listeners and to the `LiveLoadIndex` CSV column. The bootstrap auto-spawns
+a monitor in every scene at `AfterSceneLoad` and attaches a `RIPACSVColumn`
+so the CSV gains the column(s) without manual wiring.
+
+> **v1.0.1**: The monitor now runs *multiple* cognitive-load detectors in
+> parallel and writes a per-method CSV column for each one. **RIPA2 remains
+> the default HUD method** (Jayawardena, Jayawardana & Gwizdka 2025), and the
+> legacy `LiveLoadIndex` column is preserved as an alias of whichever method
+> drives the HUD. Three additional detectors from Duchowski 2026 ship as
+> alternatives — see *[Alternative methods](#alternative-methods-duchowski-2026)*.
+> On the VIVE Focus Vision, RIPA2 is the recommended HUD method; the LF/HF
+> methods saturate because the device's pupil stream is pre-smoothed by the
+> driver. They're recorded anyway for cross-device validation.
 
 ## Prerequisites
 
@@ -135,13 +144,96 @@ component lives across scene transitions.
 
 API surface (file: `Assets/Scripts/EyeTracking/Metrics/RIPAMonitor.cs`):
 
-| Member | Line | Notes |
-|---|---|---|
-| `static RIPAMonitor Instance` | `:85` | Scene-scoped singleton. |
-| `bool IsValid` | `:106` | True once the VLF window is filled. |
-| `float CurrentLoad` | `:110` | Smoothed, clipped output. |
-| `float CurrentRawLoad` | `:114` | Unsmoothed, clipped output. |
-| `FloatEvent OnLoadChanged` | `:72` | Fires after every recompute, throttled by `publishIntervalSeconds`. |
+| Member | Notes |
+|---|---|
+| `static RIPAMonitor Instance` | Scene-scoped singleton. |
+| `bool IsValid` | True once the displayed detector has produced a valid reading. |
+| `float CurrentLoad` | Smoothed value of the displayed detector, in `[0, 1.5]`. |
+| `float CurrentRawLoad` | Raw value of the displayed detector. |
+| `CognitiveLoadMethod DisplayedMethod` | Which detector drives `CurrentLoad`/`OnLoadChanged`. |
+| `ICognitiveLoadDetector GetDetector(method)` | Look up any enabled detector by method. |
+| `IReadOnlyList<ICognitiveLoadDetector> EnabledDetectors` | Stable list, RIPA2-first order. |
+| `FloatEvent OnLoadChanged` | Fires after every recompute, throttled by `publishIntervalSeconds`. |
+
+---
+
+## Alternative methods (Duchowski 2026)
+
+v1.0.1 adds three frequency-domain cognitive-load detectors from
+Duchowski 2026, "Real-Time Cognitive Load Measurement of Pupillary
+Oscillation" (Proc. ACM CGIT 9(2) Article 23). All three compute an
+LF/HF power ratio of the pupil signal (LF = 0–1.6 Hz, HF = 1.6–4 Hz):
+
+| Method | Listing | Warm-up | Buffer | When to use |
+|---|---|---|---|---|
+| **RIPA2** (default) | — | ~3.3 s | 240 samples @ 60 Hz | Always-on HUD; robust on pre-smoothed HMD pupil streams. |
+| **Butterworth IIR** | §4 / Listing 3 | 5 s | streaming + 5 s variance window | Paper's primary contribution — best real-time LF/HF detector for raw, high-bandwidth pupil. |
+| **FFT periodogram** | §2 / Listing 1 | ~34 s | 2048 samples (power-of-two) | Offline-class spectral baseline; useful for post-hoc analysis. |
+| **db4 DWT** | §3 / Listing 2 | ~34 s | 2048 samples | Wavelet alternative to FFT; time-frequency localized. |
+
+### What gets recorded
+
+When `RIPAMonitor` is in the scene with all detectors enabled (the
+v1.0.1 default), `RIPACSVColumn` registers one CSV column per method
+plus the legacy alias:
+
+| Column | Source |
+|---|---|
+| `LiveLoadIndex` | Smoothed value of `DisplayedMethod` (back-compat alias). |
+| `LiveLoadIndex_RIPA2` | RIPA2 smoothed value. |
+| `LiveLoadIndex_BW` | Butterworth smoothed value. |
+| `LiveLoadIndex_BW_Raw` | Butterworth raw LF/HF ratio (uncapped, optional). |
+| `LiveLoadIndex_FFT` | FFT smoothed value. |
+| `LiveLoadIndex_DWT` | db4 DWT smoothed value. |
+
+FFT and DWT columns are zero for the first ~34 s of a session
+(warm-up); RIPA2 and Butterworth values appear within ~5 s.
+
+### Selecting the HUD method
+
+`RIPAMonitor` has a `displayedMethod` inspector field, and
+`ExperimentUI` exposes `hudMethod` next to its `showRipaHud` toggle.
+Setting `ExperimentUI.hudMethod` propagates to the monitor on bind.
+The monitor still runs *every enabled detector* each frame regardless
+of which one is on-screen, so the CSV captures all methods.
+
+### Device-bandwidth caveat
+
+The LF/HF methods (Butterworth/FFT/DWT) need a high-bandwidth raw
+pupil stream to work as the paper intends. Duchowski 2026's validation
+used an SR Research Eyelink 1000 at 1000 Hz; HMD eye trackers
+typically pre-smooth pupil before exposing it via OpenXR.
+
+On the **HTC VIVE Focus Vision**, Welch PSD on a real recording shows
+~40% of pupil signal power below 0.1 Hz, ~50% in the 0.1–0.5 Hz
+hippus band, and **only ~1% in the 1.6–4 Hz HF band**. The "true"
+LF/HF ratio runs at 50–200, far above the paper's "practical [0, 20]"
+range. The monitor's `lfHfMaxRatio` (default 200) and
+`lfHfSmoothedScale` (default 0.28) inspector fields rescale the HUD
+mapping so the gauge isn't pinned at the clip ceiling; the raw values
+are still recorded in `LiveLoadIndex_BW_Raw`.
+
+RIPA2 is not affected by this because it uses Savitzky–Golay
+derivatives that respond to the slow oscillations the VIVE *does*
+capture.
+
+**Recommendation**: keep RIPA2 as the HUD method on the VIVE. Use the
+recorded `LiveLoadIndex_BW` / `_FFT` / `_DWT` columns for cross-device
+validation if you later run the same protocol on an Eyelink-class
+tracker.
+
+### Sign convention for LF/HF methods
+
+Per Duchowski 2026 §7.2:
+
+- **RIPA2**: higher value = more cognitive load (always).
+- **Butterworth/FFT/DWT**: direction depends on task type.
+  - *Arithmetic-type tasks*: LF/HF *increases* under load.
+  - *N-back / working-memory tasks*: LF/HF *decreases* under load.
+
+This is physiology, not a bug. The bundled SampleExperiment's
+CountingTask falls between these two task families; expect the
+direction to depend on participant strategy.
 
 ---
 
@@ -262,15 +354,49 @@ smoothing, narrower bands) without re-recording.
 
 ## Inspector reference
 
+### Master + method selection
+
 | Field | Default | Notes |
 |---|---|---|
 | `enableMonitor` | true | Master switch. Toggle `RIPAMonitor.Enabled` at runtime. |
+| `displayedMethod` | RIPA2 | Which detector drives `CurrentLoad` / `OnLoadChanged` / HUD. |
+| `enableRipa2` | true | Run the RIPA2 detector. |
+| `enableButterworth` | true | Run the Duchowski 2026 IIR LF/HF detector. |
+| `enableFft` | true | Run the FFT periodogram detector. |
+| `enableDwt` | true | Run the db4 DWT detector. |
 | `sampleRateOverrideHz` | 0 (auto) | Pin a fixed sample rate; 0 uses `IEyeTracker.SamplingRateHz`. |
+| `publishIntervalSeconds` | 0 (every recompute) | Throttle `OnLoadChanged` for HUDs. |
+
+### RIPA2 parameters (Jayawardena 2025)
+
+| Field | Default | Notes |
+|---|---|---|
 | `vlfCutoffHz`, `vlfPolyOrder` | 0.29 Hz, N=2 | Paper VLF band. |
 | `lfCutoffHz`, `lfPolyOrder` | 4 Hz, N=4 | Paper LF band. |
 | `bufferSeconds` | 4 s | Must cover the VLF SG window (≥ 2·M_VLF + 1 samples). |
 | `smoothingSeconds` | 1.5 s | Trailing moving average. Paper recommends 1–2 s. |
-| `publishIntervalSeconds` | 0 (every recompute) | Throttle `OnLoadChanged` for HUDs. |
+
+### Butterworth IIR parameters (Duchowski 2026 Listing 3)
+
+| Field | Default | Notes |
+|---|---|---|
+| `bwLowBandHz`, `bwHighBandHz` | 1.6, 4 Hz | LF/HF band boundary. |
+| `bwFilterOrder` | 4 | Both LP and BP filters. Paper recommends 4–6. |
+| `bwPowerWindowSeconds` | 5 s | Sliding variance window. |
+
+### FFT / DWT parameters (Duchowski 2026 Listings 1, 2)
+
+| Field | Default | Notes |
+|---|---|---|
+| `fftDwtBufferSamples` | 2048 | Power of two. ≈34 s at 60 Hz. |
+| `dwtMaxLevel` | 8 | DWT cascade depth, capped by `floor(log2(bufferSamples))`. |
+
+### LF/HF HUD scaling (shared by Butterworth/FFT/DWT)
+
+| Field | Default | Notes |
+|---|---|---|
+| `lfHfMaxRatio` | 200 | Cap on raw LF/HF ratio. Paper uses 20 for raw 1 kHz pupil; HMD-grade pre-smoothed signals run higher — tune per device. |
+| `lfHfSmoothedScale` | 0.28 | `smoothed = log(1 + raw) · scale`, clipped at 1.5. With `lfHfMaxRatio = 200` this maps the cap to the HUD ceiling. |
 
 ---
 
@@ -280,6 +406,11 @@ smoothing, narrower bands) without re-recording.
   Measuring Mental Effort in Real Time Using Pupillometry.
   *J. Eye Movement Research* 18(6), 70.
   <https://doi.org/10.3390/jemr18060070>
+- Duchowski, A. T. (2026). Real-Time Cognitive Load Measurement of
+  Pupillary Oscillation. *Proc. ACM Comput. Graph. Interact. Tech.*
+  9(2), Article 23. Source for the Butterworth/FFT/DWT LF/HF
+  alternative detectors added in v1.0.1.
+  <https://doi.org/10.1145/3803537>
 - Schäfer, R. W. (2011). What Is a Savitzky–Golay Filter?
   *IEEE Signal Processing Magazine* 28(4), 111–117.
 - Duchowski, A. T. et al. (2018). The Index of Pupillary Activity:

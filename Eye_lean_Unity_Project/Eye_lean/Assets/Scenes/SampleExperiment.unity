@@ -432,7 +432,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 145fb2cb4469e4e9286d9a61d0876822, type: 3}
   m_Name: 
   m_EditorClassIdentifier: EyeLean.Replay::EyeLean.Replay.ReplayController
-  dataFilePath:
+  dataFilePath: 
   autoLoadOnStart: 1
   debugMode: 1
   playbackSpeed: 1
@@ -547,15 +547,6 @@ MonoBehaviour:
         cutoffFrequency: 0.1
       savitzkyGolay:
         windowSize: 5
-  constraintSettings:
-    fallbackMethod: 0
-    qualityThreshold: 0
-    enableConstraints: 0
-    raycastLayerMask:
-      serializedVersion: 2
-      m_Bits: 0
-  surfaceRaycastExtraSmoothing: 0
-  enableDebugOnStart: 1
   showDebugRays: 0
   showVergencePoint: 0
   rayLength: 10
@@ -972,6 +963,8 @@ MonoBehaviour:
   cornerOffsetVertical: 0.35
   autoCreateUI: 1
   autoRecordEvents: 1
+  showRipaHud: 1
+  hudMethod: 1
   panelWidth: 1.5
   panelHeightSize: 0.8
   backgroundColor: {r: 0.1, g: 0.1, b: 0.2, a: 0.9}
@@ -992,14 +985,14 @@ MonoBehaviour:
   cameraTransform: {fileID: 0}
   environmentGenerator: {fileID: 0}
   objectColors:
-  - {r: 1, g: 0, b: 0, a: 1}
   - {r: 0, g: 0, b: 1, a: 1}
-  - {r: 0, g: 1, b: 0, a: 1}
   - {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   - {r: 1, g: 0.5, b: 0, a: 1}
   - {r: 0, g: 1, b: 1, a: 1}
   - {r: 1, g: 0, b: 1, a: 1}
   - {r: 0.5, g: 0, b: 0.5, a: 1}
+  - {r: 0.85, g: 0.85, b: 0.85, a: 1}
+  - {r: 0.4, g: 0.2, b: 0.05, a: 1}
   objectShapes: 030000000000000002000000
 --- !u!114 &1978275008
 MonoBehaviour:

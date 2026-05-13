@@ -67,8 +67,10 @@ namespace EyeLean.Experiment
         [SerializeField] private bool autoRecordEvents = true;
 
         [Header("Cognitive Load HUD")]
-        [Tooltip("Show the RIPA cognitive-load gauge as a vertical strip on the left edge of the experiment panel. RIPAMonitor still records the LiveLoadIndex CSV column when this is off — only the on-screen indicator is hidden.")]
+        [Tooltip("Show the cognitive-load gauge as a vertical strip on the left edge of the experiment panel. The monitor still records every enabled detector's CSV column when this is off — only the on-screen indicator is hidden.")]
         [SerializeField] private bool showRipaHud = true;
+        [Tooltip("Which cognitive-load detector drives the HUD value. All enabled detectors (configured on the auto-spawned RIPAMonitor) are still recorded to per-method CSV columns regardless of this choice. RIPA2 = Jayawardena 2025 (instant). Butterworth = Duchowski 2026 IIR LF/HF (1 s warm-up). FFT/DWT = Duchowski 2026 (34 s warm-up at 60 Hz).")]
+        [SerializeField] private CognitiveLoadMethod hudMethod = CognitiveLoadMethod.RIPA2;
         [Tooltip("Width of the auto-built panel in meters.")]
         [SerializeField] private float panelWidth = 1.2f;
         [Tooltip("Height of the auto-built panel in meters.")]
@@ -146,6 +148,11 @@ namespace EyeLean.Experiment
                 boundLoadMonitor = RIPAMonitor.Instance;
                 if (boundLoadMonitor != null && loadHudPanel != null)
                 {
+                    // Push the inspector-selected detector to the monitor so
+                    // the HUD reflects the researcher's choice. The monitor
+                    // still computes every enabled detector each frame; this
+                    // only changes which one drives CurrentLoad / OnLoadChanged.
+                    boundLoadMonitor.DisplayedMethod = hudMethod;
                     boundLoadMonitor.OnLoadChanged.AddListener(HandleLoadUpdated);
                     loadHudPanel.SetActive(boundLoadMonitor.Enabled);
                 }
@@ -265,6 +272,7 @@ namespace EyeLean.Experiment
                     if (m != null)
                     {
                         boundLoadMonitor = m;
+                        m.DisplayedMethod = hudMethod;
                         m.OnLoadChanged.AddListener(HandleLoadUpdated);
                     }
                 }
@@ -374,20 +382,47 @@ namespace EyeLean.Experiment
                 ? cachedRoomFrame.position
                 : cameraTransform.position;
             targetPosition = anchorPos + forward * panelDistance;
-            // Latch eye-level Y on the first valid camera pose and reuse it
+            // Latch eye-level Y on the first stable camera pose and reuse it
             // for the lifetime of the scene. Re-sampling cameraTransform.y on
             // every ShowInstruction would jump the panel whenever the user
-            // crouches or stands between phases. Y < 1.0 m is treated as a
-            // not-yet-tracked HMD (matches the CalibrationWorldUI stability
-            // guard).
-            if (!cachedAnchorYValid && cameraTransform.position.y >= 1.0f)
+            // crouches or stands between phases.
+            //
+            // Stability gates (defense against the brief XR-rig settling
+            // transient on scene entry):
+            //   • cameraY must lie within plausible adult eye-height range
+            //     [1.0, 2.2] m. Outside this range is a not-yet-tracked HMD
+            //     or an XR rig that hasn't snapped to the user yet — locking
+            //     onto a transient ~2.6 m reading lands the panel above the
+            //     ceiling (observed in dev logs 2026-05-13).
+            //   • Camera Y must remain within ±0.15 m of itself for ~0.3 s
+            //     before we accept it. A passing-through spike into the
+            //     plausible range gets rejected here.
+            const float minPlausibleHeadHeight = 1.0f;
+            const float maxPlausibleHeadHeight = 2.2f;
+            const float anchorStabilityWindowSec = 0.3f;
+            const float anchorStabilityThreshold = 0.15f;
+            float camY = cameraTransform.position.y;
+            if (!cachedAnchorYValid)
             {
-                cachedAnchorY = cameraTransform.position.y + panelHeight;
-                cachedAnchorYValid = true;
+                if (camY < minPlausibleHeadHeight || camY > maxPlausibleHeadHeight)
+                {
+                    anchorStabilityStart = -1f;
+                }
+                else if (anchorStabilityStart < 0f
+                         || Mathf.Abs(camY - anchorStabilitySeedY) > anchorStabilityThreshold)
+                {
+                    anchorStabilitySeedY = camY;
+                    anchorStabilityStart = Time.unscaledTime;
+                }
+                else if (Time.unscaledTime - anchorStabilityStart >= anchorStabilityWindowSec)
+                {
+                    cachedAnchorY = camY + panelHeight;
+                    cachedAnchorYValid = true;
+                }
             }
             targetPosition.y = cachedAnchorYValid
                 ? cachedAnchorY
-                : cameraTransform.position.y + panelHeight;
+                : camY + panelHeight;
 
             // Explicit world-up so head pitch/roll never leaks into the panel
             // orientation (same upright lock as UpdatePinnedPosition).
@@ -408,6 +443,9 @@ namespace EyeLean.Experiment
         private Transform cachedRoomFrame;
         private float cachedAnchorY;
         private bool cachedAnchorYValid;
+        // Stability gate for the anchor latch (see UpdateCenteredPosition).
+        private float anchorStabilityStart = -1f;
+        private float anchorStabilitySeedY;
 
         private Vector3 ResolveCenteringForward()
         {

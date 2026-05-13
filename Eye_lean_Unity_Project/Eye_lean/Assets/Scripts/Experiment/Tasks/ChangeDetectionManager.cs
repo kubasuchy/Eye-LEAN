@@ -86,10 +86,43 @@ namespace EyeLean.Experiment
 
         /// <summary>
         /// Configure the change detection parameters.
+        ///
+        /// Filters the inspector-overridable <see cref="objectColors"/> array
+        /// to remove any entry that's perceptually close to the feedback
+        /// colors (correct = green, incorrect = red). Without this, a scene
+        /// override could re-introduce red/green into the trial palette and
+        /// participants would confuse trial-object color with feedback tint.
         /// </summary>
         public void Configure(ChangeDetectionConfig config)
         {
             this.config = config;
+            FilterFeedbackColorsFromPalette();
+        }
+
+        private void FilterFeedbackColorsFromPalette()
+        {
+            if (objectColors == null || objectColors.Length == 0) return;
+            var filtered = new List<Color>(objectColors.Length);
+            int removed = 0;
+            foreach (var c in objectColors)
+            {
+                if (ColorsSimilar(c, config.correctFeedbackColor) ||
+                    ColorsSimilar(c, config.incorrectFeedbackColor))
+                {
+                    Debug.LogWarning($"[ChangeDetection] Dropping palette color ({c.r:F2},{c.g:F2},{c.b:F2}) — too close to feedback color. Update the scene's ChangeDetectionManager.objectColors so it does not include red or green.");
+                    removed++;
+                    continue;
+                }
+                filtered.Add(c);
+            }
+            if (removed > 0)
+            {
+                objectColors = filtered.ToArray();
+                if (objectColors.Length < 3)
+                {
+                    Debug.LogError($"[ChangeDetection] After removing feedback-colored palette entries, only {objectColors.Length} colors remain — change-detection trials will lack variety. Add more non-red/green colors to the inspector.");
+                }
+            }
         }
 
         /// <summary>
@@ -168,16 +201,39 @@ namespace EyeLean.Experiment
 
                 if (changeType == "color")
                 {
-                    // Log before/after RGB so post-hoc audits can confirm the
-                    // color change actually took.
                     Color newColor = GetDifferentColor(originalState.color);
                     var renderer = changedObject.GetComponent<Renderer>();
                     if (renderer != null)
                     {
                         renderer.material.color = newColor;
-                        Debug.Log($"[ChangeDetection] Color change applied to '{originalState.name}': " +
-                                  $"orig=({originalState.color.r:F2},{originalState.color.g:F2},{originalState.color.b:F2}) " +
-                                  $"new=({newColor.r:F2},{newColor.g:F2},{newColor.b:F2})");
+                        // Triple-check (1): the new color is not the original.
+                        // Triple-check (2): RGB Euclidean distance is large
+                        // enough to be perceptually distinct (≥0.3 in linear
+                        // RGB ≈ 1 JND step).
+                        // Triple-check (3): the new color is not too close to
+                        // either feedback color (red or green).
+                        float dr = newColor.r - originalState.color.r;
+                        float dg = newColor.g - originalState.color.g;
+                        float db = newColor.b - originalState.color.b;
+                        float dist = Mathf.Sqrt(dr * dr + dg * dg + db * db);
+                        bool conflictWithFeedback =
+                            ColorsSimilar(newColor, config.correctFeedbackColor) ||
+                            ColorsSimilar(newColor, config.incorrectFeedbackColor);
+                        if (dist < 0.3f)
+                        {
+                            Debug.LogError($"[ChangeDetection] Color change too subtle on '{originalState.name}': RGB distance {dist:F3} < 0.3. Palette too small or too similar. orig=({originalState.color.r:F2},{originalState.color.g:F2},{originalState.color.b:F2}) new=({newColor.r:F2},{newColor.g:F2},{newColor.b:F2})");
+                        }
+                        else if (conflictWithFeedback)
+                        {
+                            Debug.LogError($"[ChangeDetection] Color change on '{originalState.name}' landed on a feedback-similar color ({newColor.r:F2},{newColor.g:F2},{newColor.b:F2}) — participant cannot tell post-change tint from positive/negative feedback. Filter palette in inspector.");
+                        }
+                        else
+                        {
+                            Debug.Log($"[ChangeDetection] Color change applied to '{originalState.name}': " +
+                                      $"orig=({originalState.color.r:F2},{originalState.color.g:F2},{originalState.color.b:F2}) " +
+                                      $"new=({newColor.r:F2},{newColor.g:F2},{newColor.b:F2}) " +
+                                      $"RGB-distance={dist:F2}");
+                        }
                     }
                     else
                     {
@@ -207,6 +263,8 @@ namespace EyeLean.Experiment
         // palette entry so a color change always crosses the largest visual
         // gap available. Picking randomly from non-similar entries can land
         // on an adjacent hue that reads as "no change" on a VR display.
+        // Also skips entries close to either feedback color so the change
+        // can never tint an object to look like positive/negative feedback.
         private Color GetDifferentColor(Color originalColor)
         {
             float bestDistSq = -1f;
@@ -214,6 +272,8 @@ namespace EyeLean.Experiment
             foreach (var c in objectColors)
             {
                 if (ColorsSimilar(c, originalColor)) continue;
+                if (ColorsSimilar(c, config.correctFeedbackColor)) continue;
+                if (ColorsSimilar(c, config.incorrectFeedbackColor)) continue;
                 float dr = c.r - originalColor.r;
                 float dg = c.g - originalColor.g;
                 float db = c.b - originalColor.b;
