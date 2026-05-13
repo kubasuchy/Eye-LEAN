@@ -180,12 +180,19 @@ namespace EyeTracking.Calibration
             runnersParent.transform.SetParent(transform);
 
             // Create each enabled test runner
+            // Note: runners still raise OnProgressUpdated for any researcher
+            // subscribers, but the session manager itself does NOT subscribe
+            // to drive the "Time remaining: Ns" text. UI is driven solely by
+            // the wall-clock RunFallbackProgressTimer below, so the countdown
+            // never has two competing writers (which previously made the
+            // SmoothPursuit counter jitter as the sample-rate-driven runner
+            // clock and the frame-driven fallback drifted across each F0
+            // rounding boundary at different moments).
             if (includeFixationTest)
             {
                 var runner = runnersParent.AddComponent<FixationTestRunner>();
                 runner.Initialize(eyeTracker, settings);
                 runner.OnTestCompleted += HandleTestCompleted;
-                runner.OnProgressUpdated += HandleProgressUpdated;
                 testRunners[CalibrationTestType.Fixation] = runner;
             }
 
@@ -194,7 +201,6 @@ namespace EyeTracking.Calibration
                 var runner = runnersParent.AddComponent<SmoothPursuitTestRunner>();
                 runner.Initialize(eyeTracker, settings);
                 runner.OnTestCompleted += HandleTestCompleted;
-                runner.OnProgressUpdated += HandleProgressUpdated;
                 testRunners[CalibrationTestType.SmoothPursuit] = runner;
             }
 
@@ -203,7 +209,6 @@ namespace EyeTracking.Calibration
                 var runner = runnersParent.AddComponent<SaccadeTestRunner>();
                 runner.Initialize(eyeTracker, settings);
                 runner.OnTestCompleted += HandleTestCompleted;
-                runner.OnProgressUpdated += HandleProgressUpdated;
                 testRunners[CalibrationTestType.Saccade] = runner;
             }
 
@@ -456,10 +461,9 @@ namespace EyeTracking.Calibration
             // Show the small progress panel (not SetVisible(false), which would
             // hide the progress bar too) so the participant sees a live "Time
             // remaining: Ns" countdown without the larger instruction panel
-            // occluding the calibration targets. Progress is ticked by
-            // HandleProgressUpdated for runners that emit it (SmoothPursuit)
-            // and by RunFallbackProgressTimer for runners that don't (Fixation
-            // / Saccade — discrete event-driven).
+            // occluding the calibration targets. Progress is ticked solely by
+            // the wall-clock RunFallbackProgressTimer; runners' OnProgressUpdated
+            // is intentionally not wired to UI (see notes in CreateTestRunners).
             if (worldUI != null)
             {
                 worldUI.ShowProgressBar(scenario.name, scenario.duration);
@@ -1161,24 +1165,13 @@ namespace EyeTracking.Calibration
             }
         }
 
-        private void HandleProgressUpdated(float progress)
-        {
-            if (worldUI != null)
-            {
-                CalibrationScenario scenario = currentScenarioIndex < scenarios.Count
-                    ? scenarios[currentScenarioIndex]
-                    : default;
-
-                float remainingTime = scenario.duration * (1f - progress);
-                worldUI.UpdateProgress(progress, remainingTime);
-            }
-        }
-
-        // Fallback progress timer for runners that don't emit
-        // OnProgressUpdated each frame (Fixation, Saccade — they report only
-        // at discrete events). Ticks the same UpdateProgress channel based on
-        // wall-clock so the participant sees a continuous countdown for every
-        // scenario type. Cancelled and restarted at each scenario boundary.
+        // Wall-clock progress timer — sole driver of the "Time remaining: Ns"
+        // countdown and the progress-bar fill. Per-frame, monotonic. Runners
+        // also raise OnProgressUpdated for any researcher subscribers, but the
+        // session manager intentionally does not bind that event to UI: doing
+        // so would put two clocks (sample-rate vs frame-rate) onto the same
+        // text field and produce the SmoothPursuit jitter we hit at v1.0.0.
+        // Cancelled and restarted at each scenario boundary.
         private Coroutine fallbackProgressCoroutine;
         private System.Collections.IEnumerator RunFallbackProgressTimer(float duration)
         {
@@ -1368,7 +1361,6 @@ namespace EyeTracking.Calibration
             foreach (var runner in testRunners.Values)
             {
                 runner.OnTestCompleted -= HandleTestCompleted;
-                runner.OnProgressUpdated -= HandleProgressUpdated;
             }
         }
     }
