@@ -18,6 +18,8 @@ works on its own — the CSV schema is stable and documented.
 
 In memory of Professor Eileen Kowler.
 
+
+[![Introduction to Eye-LEAN](https://img.youtube.com/vi/gONR4RvAOz0/maxresdefault.jpg)](https://youtu.be/gONR4RvAOz0)
 ## Prerequisites
 
 - Unity 6000.3.9f1 (Unity-side work)
