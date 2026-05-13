@@ -69,9 +69,9 @@ to record; Skeleton is a template scene materialized via
 
 ### Unity
 
-- **First time using Unity?** Work through
-  [`docs/QUICKSTART.md`](docs/QUICKSTART.md) — install Unity Hub,
-  open the project, hit Play. ~30 minutes end to end.
+- **New to Unity?** Work through
+  [`docs/QUICKSTART.md`](docs/QUICKSTART.md).
+
 - **Already comfortable with Unity?**
 
   ```bash
