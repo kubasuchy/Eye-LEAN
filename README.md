@@ -19,6 +19,7 @@ works on its own — the CSV schema is stable and documented.
 In memory of Professor Eileen Kowler.
 
 Watch the introduction video below:
+
 [![Introduction to Eye-LEAN](https://img.youtube.com/vi/gONR4RvAOz0/maxresdefault.jpg)](https://youtu.be/gONR4RvAOz0)
 ## Prerequisites
 
@@ -57,8 +58,10 @@ Three scenes ship as APK build targets:
 3. `SampleExperiment.unity` (build 2) — the four-phase battery
    (FreeExploration, VisualSearch, CountingTask, ChangeDetection). The CSV
    has a `CurrentPhase` column so per-phase analysis is automatic, and the
-   [`RIPAMonitor`](docs/RIPA_MONITOR.md) component writes a live RIPA2
-   cognitive-load index into the `LiveLoadIndex` column.
+   [`RIPAMonitor`](docs/RIPA_MONITOR.md) component writes a per-frame
+   cognitive-load index. RIPA2 is the default HUD method; v1.0.1 also
+   records Butterworth / FFT / DWT LF-HF alternatives (Duchowski 2026) into
+   `LiveLoadIndex_BW` / `_FFT` / `_DWT` columns.
 
 Replay and Skeleton are editor-only, not build targets. Replay is a component
 (`ReplayManager` + `DemoReplayBootstrapper`) you drop into the same scene used
@@ -293,7 +296,8 @@ notebook expects them in `Logs/` at the repo root.
 
 See [`CITATION.cff`](CITATION.cff) for the machine-readable form. Please also
 cite the underlying algorithms when the corresponding feature contributed
-to your analysis — RIPA2 (Jayawardena, Jayawardana & Gwizdka 2025), LHIPA
+to your analysis — RIPA2 (Jayawardena, Jayawardana & Gwizdka 2025), the
+Butterworth / FFT / DWT LF-HF detectors (Duchowski 2026), LHIPA
 (Duchowski et al. 2020), K-coefficient (Krejtz et al. 2016, PLoS ONE),
 SGE / GTE (Krejtz et al. 2015 + Shiferaw, Downey & Crewther 2019), I-VT
 (Salvucci & Goldberg 2000), Rocketbox avatars (Gonzalez-Franco et al. 2020).

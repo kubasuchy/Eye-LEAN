@@ -172,7 +172,31 @@ maxima count against Donoho's universal threshold).
 Implemented as `RIPAMonitor` / `RIPA2Analyzer` on the Unity side. VLF
 ≈ 0.29 Hz / LF ≈ 4 Hz Savitzky–Golay derivative bands, `[0, 1.5]`
 clip range and 1–2 s smoothing window are taken from the paper. The
-`LiveLoadIndex` CSV column is the per-sample RIPA2 output.
+`LiveLoadIndex_RIPA2` CSV column (and the legacy `LiveLoadIndex`
+alias) is the per-sample RIPA2 output.
+
+### LF/HF detectors (Butterworth IIR, FFT, db4 DWT)
+
+```bibtex
+@article{duchowski2026realtime,
+  title   = {Real-Time Cognitive Load Measurement of Pupillary Oscillation},
+  author  = {Duchowski, Andrew T.},
+  journal = {Proceedings of the ACM on Computer Graphics and Interactive Techniques},
+  volume  = {9},
+  number  = {2},
+  pages   = {23:1--23:20},
+  year    = {2026},
+  doi     = {10.1145/3803537}
+}
+```
+
+Implemented as `ButterworthLfHfAnalyzer` (Listing 3 — paper's primary
+real-time contribution), `FftLfHfAnalyzer` (Listing 1 — periodogram),
+and `DwtLfHfAnalyzer` (Listing 2 — db4 wavelet). LF (0–1.6 Hz) and HF
+(1.6–4 Hz) band edges, 4th-order Butterworth, 5 s power window, and
+the 30 s default buffer for FFT/DWT all follow the paper. These ship
+in v1.0.1 as alternatives to RIPA2; recorded in
+`LiveLoadIndex_BW` / `_FFT` / `_DWT` columns.
 
 ---
 

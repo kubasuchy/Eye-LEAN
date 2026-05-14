@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 title: "EYE-LEAN (Locomotion, Exploration, Action and Navigation with Eye Tracking): a Behavioral Research Toolkit for Data Rich Virtual Reality Experiments"
-message: "If you use Eye_lean in research, please cite this toolkit and the underlying algorithms (LHIPA: Duchowski 2020; RIPA2: Jayawardena, Jayawardana & Gwizdka 2025; K-coefficient: Krejtz 2016 PLoS ONE; SGE/GTE: Krejtz 2015 + Shiferaw, Downey & Crewther 2019; I-VT: Salvucci & Goldberg 2000)."
+message: "If you use Eye_lean in research, please cite this toolkit and the underlying algorithms (LHIPA: Duchowski 2020; RIPA2: Jayawardena, Jayawardana & Gwizdka 2025; LF/HF Butterworth/FFT/DWT: Duchowski 2026; K-coefficient: Krejtz 2016 PLoS ONE; SGE/GTE: Krejtz 2015 + Shiferaw, Downey & Crewther 2019; I-VT: Salvucci & Goldberg 2000)."
 type: software
 authors:
   - family-names: Suchojad
@@ -34,8 +34,9 @@ abstract: >
   eye-tracking data from VR head-mounted displays. It ships a
   calibrator with per-user profile correction, a deterministic-replay
   system that reproduces recordings frame-accurately, a real-time
-  cognitive-load monitor (RIPA2), and a researcher template
-  (Skeleton) for building custom VR behavioral experiments.
+  multi-detector cognitive-load monitor (RIPA2 default plus
+  Butterworth / FFT / DWT LF-HF alternatives), and a researcher
+  template (Skeleton) for building custom VR behavioral experiments.
 keywords:
   - "eye tracking"
   - "virtual reality"

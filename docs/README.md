@@ -44,7 +44,7 @@ Both run on the same recording, replay, and RIPA layers below.
 | `SessionRecorder` | [SESSION_RECORDER.md](SESSION_RECORDER.md) | Per-frame CSV + `RegisterMetric` API + custom metadata. |
 | `HMDDataCollector` | [HMD_DATA.md](HMD_DATA.md) | Head pose, FPS, `# CoordinateOrigin` header. |
 | `EyeTracker` | [EYE_TRACKER.md](EYE_TRACKER.md) | Gaze, vergence, pupil, gaze-target dispatch. |
-| `RIPAMonitor` | [RIPA_MONITOR.md](RIPA_MONITOR.md) | Real-time RIPA2 cognitive-load index. |
+| `RIPAMonitor` | [RIPA_MONITOR.md](RIPA_MONITOR.md) | Real-time cognitive-load monitor — RIPA2 default plus Butterworth / FFT / DWT LF-HF alternatives (Duchowski 2026). |
 
 ### Replay
 

@@ -237,33 +237,36 @@ Verification passed; promoted profile to default:` from
 
 ---
 
-### RIPA LiveLoadIndex column is all zeros
+### `LiveLoadIndex` column is all zeros
 
-**Symptom**: The CSV `LiveLoadIndex` column is present but every value
-is `0` or `NaN`.
+**Symptom**: The CSV `LiveLoadIndex` (and the per-method
+`LiveLoadIndex_RIPA2`, `_BW`, `_FFT`, `_DWT` columns added in v1.0.1)
+is present but every value is `0` or `NaN`.
 
 1. Confirm the monitor was constructed: logcat should show
-   `[RIPAMonitor] Active. fs=<rate> Hz, ...` from
-   `Assets/Scripts/EyeTracking/Metrics/RIPAMonitor.cs:161`. Absence
-   means the analyzer threw at construction; look for
-   `[RIPAMonitor] Failed to construct analyzer:`
-   (`RIPAMonitor.cs:165`).
+   `[RIPAMonitor] RIPA2 active. fs=<rate> Hz, ...` and (if enabled)
+   one line each for `Butterworth active`, `FFT active`, `DWT active`.
+   Absence means an analyzer threw at construction; look for
+   `[RIPAMonitor] Failed to construct ... analyzer:`.
 2. Confirm valid pupil data is reaching the monitor. The first valid
-   output prints `[RIPAMonitor] First valid output: raw=<v>
-   smoothed=<v> (after <N> pushed samples).`
-   (`RIPAMonitor.cs:221`). If you instead see `[RIPAMonitor] Diag:
-   pushed=<N> skippedNaN=<M> ...` (`RIPAMonitor.cs:211`) with high
+   output prints `[RIPAMonitor] First valid output (<method>):
+   raw=<v> smoothed=<v> (after <N> pushed samples).` If you instead
+   see `[RIPAMonitor] Diag: pushed=<N> skippedNaN=<M> ...` with high
    `skippedNaN`, the eye tracker is returning unreliable pupil
    diameters; recalibrate the device.
-3. If two `RIPAMonitor` instances exist, the second logs
+3. The FFT and DWT detectors need a ~34 s warm-up at 60 Hz before
+   they emit a first reading (vs ~3 s for RIPA2 and ~5 s for
+   Butterworth). Short sessions can leave the FFT/DWT columns at 0.
+4. If two `RIPAMonitor` instances exist, the second logs
    `[RIPAMonitor] Duplicate instance on '<name>'; destroying
-   duplicate.` (`RIPAMonitor.cs:136`). The
-   `RIPAMonitorBootstrap` (`Assets/Scripts/EyeTracking/Metrics/RIPAMonitorBootstrap.cs:24`)
-   already auto-spawns one per scene; remove any manually placed
-   monitor unless you need custom Inspector settings.
-4. During replay, `RIPAMonitorBootstrap` deliberately skips spawning so the
-   recorded `LiveLoadIndex` is preserved. This is correct behaviour, not a
-   bug.
+   duplicate.` `RIPAMonitorBootstrap` already auto-spawns one per
+   scene; remove any manually placed monitor unless you need custom
+   Inspector settings.
+5. During deterministic replay (v1.0.1+) the monitor IS spawned and
+   recomputes detector values from `ReplayingEyeTracker`'s recorded
+   pupil stream — no `LiveLoadIndex` is written to CSV during replay
+   because `SessionRecorder` is suppressed, but the HUD shows live
+   recomputed values.
 
 #### Verify
 

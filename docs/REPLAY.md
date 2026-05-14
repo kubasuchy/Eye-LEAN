@@ -72,9 +72,12 @@ File: `Assets/Scripts/Replay/Core/ReplayGazeRaycaster.cs`
 ## How it integrates with the rest of the toolkit
 
 - **`ReplayMode.IsActive`** is the global flag. `SessionRecorder`,
-  `SceneStateRecorder`, `SceneEventRecorder`, and `RIPAMonitorBootstrap` all
-  check it in `Start` and disable recording when true, so live output doesn't
-  overwrite the recording you're replaying.
+  `SceneStateRecorder`, and `SceneEventRecorder` check it in `Start` and
+  disable recording when true, so live output doesn't overwrite the recording
+  you're replaying. `RIPAMonitorBootstrap` does NOT skip on replay (v1.0.1+):
+  the monitor spawns and recomputes its detectors from
+  `ReplayingEyeTracker`'s recorded pupil stream, giving the HUD a live readout
+  during playback. CSV writes are still suppressed by `SessionRecorder`.
 - **`HmdPoseDriverBootstrap`** does NOT attach a TrackedPoseDriver during
   replay — the replay system writes `Camera.main` pose directly from the
   recorded HMD column each frame.

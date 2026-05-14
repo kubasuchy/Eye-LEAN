@@ -79,7 +79,10 @@ The corner phase indicator (top-RIGHT) listens to
 `SampleExperimentController.OnPhaseChanged` if one is present;
 otherwise it stays hidden. The cognitive-load HUD (top-LEFT)
 auto-binds to `RIPAMonitor.Instance.OnLoadChanged` and tints
-green → amber → red across the RIPA2 clip range `[0, 1.5]`.
+green → amber → red across the shared `[0, 1.5]` smoothed range. The
+inspector field `hudMethod` (v1.0.1+) selects which detector
+(RIPA2 / Butterworth / FFT / DWT) drives the HUD value; the monitor
+still computes and records every enabled detector each frame.
 
 ---
 
@@ -97,9 +100,12 @@ anchor. `UpdateCenteredPosition` (`ExperimentUI.cs:348`) computes:
   parallel to the back wall) when a provider exists; the camera's
   horizontal forward otherwise.
 - **Y** — `cameraTransform.position.y + panelHeight` latched on the
-  first stable HMD pose (`y >= 1.0 m`), then frozen for the lifetime
-  of the scene (`ExperimentUI.cs:382`–`389`). Latching prevents the
-  panel from jumping when the user crouches or stands between phases.
+  first stable HMD pose, then frozen for the lifetime of the scene.
+  Latching prevents the panel from jumping when the user crouches or
+  stands between phases. The stability gate (v1.0.1+) requires camera
+  Y in `[1.0, 2.2] m` and stationary within ±0.15 m for 0.3 s before
+  it commits, so transient XR-rig poses during a scene transition
+  cannot lock the panel above the ceiling.
 
 ### Inspector fields that affect anchoring
 
@@ -124,9 +130,12 @@ anchor. `UpdateCenteredPosition` (`ExperimentUI.cs:348`) computes:
   During deterministic replay the live experiment re-issues the same
   calls at the same frame, so instruction panels reappear at the
   recorded moment.
-- **RIPA monitor.** Auto-binds to `RIPAMonitor.Instance` if one is
-  in scene (the bootstrap auto-spawns one). The HUD bar fills `0..1`
-  of `load / 1.5` and tints green → amber → red.
+- **Cognitive-load monitor.** Auto-binds to `RIPAMonitor.Instance`
+  if one is in scene (the bootstrap auto-spawns one). The HUD bar
+  fills `0..1` of `load / 1.5` and tints green → amber → red. The
+  `hudMethod` inspector field selects which detector drives the bar
+  (RIPA2 / Butterworth / FFT / DWT — see
+  [`RIPA_MONITOR.md`](RIPA_MONITOR.md)).
 - **Phase indicator.** Subscribes to
   `SampleExperimentController.OnPhaseChanged` to render
   "Phase X / Y" plus dot progression. In a non-SampleExperiment

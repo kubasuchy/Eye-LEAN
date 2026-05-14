@@ -136,9 +136,11 @@ in your own controller) so `ExperimentUI` can react.
   are written into the events sidecar via `RecordJson` at session
   start, so post-hoc Inspector tweaks do not corrupt replay of
   older recordings.
-- **RIPA monitor.** `ExperimentUI` binds the top-LEFT cognitive-load
-  HUD bar to `RIPAMonitor.Instance.OnLoadChanged`. See
-  [RIPA_MONITOR.md](RIPA_MONITOR.md).
+- **Cognitive-load monitor.** `ExperimentUI` binds the top-LEFT
+  HUD bar to `RIPAMonitor.Instance.OnLoadChanged`. The displayed
+  detector is selected by `ExperimentUI.hudMethod` (RIPA2 by default;
+  Butterworth / FFT / DWT also available since v1.0.1 — see
+  [RIPA_MONITOR.md](RIPA_MONITOR.md)).
 - **Skeleton comparison.** Each task manager is, in effect, an
   inline `IExperimentPhaseHandler` implementation. If you prefer
   the Skeleton's interface-driven shape, those files are reference

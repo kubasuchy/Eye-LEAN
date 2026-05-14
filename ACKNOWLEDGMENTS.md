@@ -23,11 +23,11 @@ vision laid the conceptual ground this toolkit stands on.
   saccade / smooth-pursuit tests and the settled-vs-transition
   sample handling in `CalibrationTestRunner`.
 
-## Real-time cognitive load — RIPA2
+## Real-time cognitive load — RIPA2 + LF/HF alternatives
 
-`RIPAMonitor` is a direct on-device implementation of **RIPA2**.
-Cite this paper if you publish data using `LiveLoadIndex` or any
-output of `RIPAMonitor`:
+`RIPAMonitor` is a direct on-device implementation of **RIPA2** and
+remains the default cognitive-load method. Cite this paper if you
+publish data using `LiveLoadIndex` or `LiveLoadIndex_RIPA2`:
 
 > Jayawardena, G., Jayawardana, Y., & Gwizdka, J. (2025).
 > Measuring Mental Effort in Real Time Using Pupillometry.
@@ -36,9 +36,23 @@ output of `RIPAMonitor`:
 
 VLF ≈ 0.29 Hz / LF ≈ 4 Hz Savitzky–Golay derivative bands, [0, 1.5]
 clip range, and 1–2 s smoothing window are taken from the paper.
+
+v1.0.1 added three frequency-domain LF/HF detectors (Butterworth IIR,
+FFT periodogram, db4 DWT) as alternatives, all derived from:
+
+> Duchowski, A. T. (2026). Real-Time Cognitive Load Measurement of
+> Pupillary Oscillation. *Proc. ACM Comput. Graph. Interact. Tech.*,
+> 9(2), Article 23. <https://doi.org/10.1145/3803537>
+
+Cite Duchowski 2026 if you publish data using `LiveLoadIndex_BW`,
+`LiveLoadIndex_FFT`, or `LiveLoadIndex_DWT`. The Butterworth filter
+order/window, the LF/HF band split (0–1.6 Hz / 1.6–4 Hz), the
+sample-by-sample sosfilt pipeline, and the 30 s default buffer for
+FFT/DWT are taken from the paper.
+
 `docs/RIPA_MONITOR.md` and the source files
-`Assets/Scripts/EyeTracking/Metrics/{RIPAMonitor,RIPA2Analyzer,SavitzkyGolayDerivative}.cs`
-carry the same citation.
+`Assets/Scripts/EyeTracking/Metrics/{RIPAMonitor,RIPA2Analyzer,SavitzkyGolayDerivative,ButterworthLfHfAnalyzer,FftLfHfAnalyzer,DwtLfHfAnalyzer}.cs`
+carry the same citations.
 
 ## Pupillometry — IPA / LHIPA / RIPA / RIPA2 lineage
 
@@ -213,7 +227,8 @@ your analysis:
 
 | Feature | Required citation |
 |---|---|
-| `LiveLoadIndex` / `RIPAMonitor` | Jayawardena, Jayawardana, & Gwizdka 2025 |
+| `LiveLoadIndex` / `LiveLoadIndex_RIPA2` (default HUD method) | Jayawardena, Jayawardana, & Gwizdka 2025 |
+| `LiveLoadIndex_BW`, `LiveLoadIndex_FFT`, `LiveLoadIndex_DWT` | Duchowski 2026 |
 | `eyelean_analysis.metrics.lhipa` | Duchowski et al. 2018 |
 | `eyelean_analysis.metrics.entropy.fixation_entropy` (SGE+GTE) | Krejtz et al. 2015 + Shiferaw, Downey & Crewther 2019 |
 | `eyelean_analysis.metrics.entropy.stationary_entropy` | Shannon 1948 |

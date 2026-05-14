@@ -86,10 +86,10 @@ During warm-up, `CurrentLoad` returns 0 and the CSV column writes 0.
 Look for the first-valid log line to confirm:
 
 ```
-[RIPAMonitor] First valid output: raw=<v> smoothed=<v> (after <n> pushed samples).
+[RIPAMonitor] First valid output (<method>): raw=<v> smoothed=<v> (after <n> pushed samples).
 ```
 
-`RIPAMonitor.cs:221`. After this point, the load values are real.
+After this point, the load values for that detector are real.
 
 ---
 
@@ -107,12 +107,15 @@ Look for the first-valid log line to confirm:
 In `adb logcat -s Unity` look for:
 
 ```
-[RIPAMonitor] Active. fs=60.0 Hz, M_VLF=98 (window 197), M_LF=13 (window 27), buffer=240 samples, smoothing=90 samples.
+[RIPAMonitor] RIPA2 active. fs=60.0 Hz, M_VLF=98 (window 197), M_LF=13 (window 27), buffer=240 samples, smoothing=90 samples.
+[RIPAMonitor] Butterworth active. fs=60.0 Hz, LF=lowpass(<=1.6 Hz), HF=bandpass(1.6-4 Hz), order=4, power window=5.0s (300 samples), cap=200, scale=0.280.
+[RIPAMonitor] FFT active. fs=60.0 Hz, buffer=2048 samples (34.1s), Δf=0.0293 Hz, cap=200, scale=0.280.
+[RIPAMonitor] DWT active. fs=60.0 Hz, buffer=2048 samples (34.1s), max_level=8, cap=200, scale=0.280.
 ```
 
-`RIPAMonitor.cs:161`. The `LiveLoadIndex` column should appear in
-the recorded CSV header between `DataSampleCount` and
-`GazedObjectName`.
+One `Active` line per enabled detector. The per-detector
+`LiveLoadIndex_*` columns appear in the recorded CSV header between
+`DataSampleCount` and `GazedObjectName`.
 
 ---
 
@@ -291,9 +294,10 @@ var rec = FindFirstObjectByType<SessionRecorder>();
 rec.RegisterMetric("MyCustomScore", () => CustomLogic.CurrentScore(), "F3");
 ```
 
-`RIPACSVColumn` uses this API to register `LiveLoadIndex`
-(`RIPACSVColumn.cs:47`). The bootstrap attaches the component
-automatically; manual attachment is rarely needed.
+`RIPACSVColumn` uses this API to register `LiveLoadIndex` plus the
+per-method `LiveLoadIndex_RIPA2` / `_BW` / `_FFT` / `_DWT` columns
+(v1.0.1+). The bootstrap attaches the component automatically;
+manual attachment is rarely needed.
 
 Constraint: registration must happen *before* the recorder writes
 its header (within the 2-second coord-origin grace window after
@@ -304,21 +308,20 @@ its header (within the 2-second coord-origin grace window after
 ## Diagnostic: 5-second `[RIPAMonitor] Diag:` block
 
 Every 5 seconds the monitor logs a diagnostic so any session that
-wrote zero `LiveLoadIndex` can be inspected post-hoc
-(`RIPAMonitor.cs:211`):
+wrote zero `LiveLoadIndex` can be inspected post-hoc:
 
 ```
-[RIPAMonitor] Diag: pushed=<n> skippedNaN=<n> buffered=<m>/<window> valid=<bool> raw=<v> smoothed=<v>
+[RIPAMonitor] Diag: pushed=<n> skippedNaN=<n> displayed=<method> valid=<bool> raw=<v> smoothed=<v>
 ```
 
 Read it as:
 
-- `pushed` — pupil samples handed to the analyzer.
+- `pushed` — pupil samples fanned out to every enabled detector.
 - `skippedNaN` — samples rejected as NaN (blink artifact, dropped
   frame).
-- `buffered=m/window` — VLF ring fill. The analyzer is `valid` only
-  once `m >= window`.
-- `raw` / `smoothed` — current outputs after the warm-up.
+- `displayed` — which detector currently drives `CurrentLoad` /
+  `OnLoadChanged`.
+- `raw` / `smoothed` — current outputs of the displayed detector.
 
 If `pushed` stays at zero, the eye tracker is not feeding pupil
 samples. If `skippedNaN` dominates, the participant is blinking
@@ -346,9 +349,18 @@ result = calculate_ripa2(
 plt.plot(timestamps, result.ripa2_smoothed)
 ```
 
-Use this to validate the recorded `LiveLoadIndex` column post-hoc,
-or to recompute the metric with different parameters (longer
-smoothing, narrower bands) without re-recording.
+Use this to validate the recorded `LiveLoadIndex_RIPA2` column
+post-hoc, or to recompute the metric with different parameters
+(longer smoothing, narrower bands) without re-recording.
+
+A Python parity layer for the Duchowski 2026 Butterworth/FFT/DWT
+detectors does not ship with v1.0.1 — the Unity analyzers are the
+canonical reference. For offline analysis of the `LiveLoadIndex_BW` /
+`_FFT` / `_DWT` columns, the C# sources in
+`Assets/Scripts/EyeTracking/Metrics/` are short pure-C# ports that
+match `scipy.signal.butter` / `sosfilt` to machine epsilon and follow
+the paper's listings; a Python re-implementation is straightforward
+when needed.
 
 ---
 

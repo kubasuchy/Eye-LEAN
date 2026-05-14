@@ -444,24 +444,39 @@ Reserved internal types — do not emit these manually:
 `ConfigExploration`, `ConfigVisualSearch`, `ConfigCounting`,
 `ConfigChangeDetection`.
 
-### Optional: real-time cognitive-load monitor (RIPA2)
+### Optional: real-time cognitive-load monitor
 
 Eye_lean ships a `RIPAMonitor`
 (`Assets/Scripts/EyeTracking/Metrics/RIPAMonitor.cs`) that computes a
 per-frame cognitive-load index from the live pupil signal. It
-auto-spawns in every scene, so a `LiveLoadIndex` column appears in
-the recorded CSV with no additional setup. To read it from custom
+auto-spawns in every scene, so cognitive-load columns appear in the
+recorded CSV with no additional setup. v1.0.1 ships four detectors:
+
+- **RIPA2** (default, Jayawardena 2025) — Savitzky–Golay derivative² difference.
+- **Butterworth IIR** (Duchowski 2026) — LF/HF power ratio via 4th-order LP + BP.
+- **FFT periodogram** (Duchowski 2026) — LF/HF on a 34 s buffer.
+- **db4 DWT** (Duchowski 2026) — wavelet energy split.
+
+RIPA2 remains the default HUD method. All enabled detectors run each
+frame and record per-method columns (`LiveLoadIndex_RIPA2`,
+`LiveLoadIndex_BW`, `LiveLoadIndex_FFT`, `LiveLoadIndex_DWT`); the
+legacy `LiveLoadIndex` column aliases whichever detector is selected
+as the HUD method on `RIPAMonitor.DisplayedMethod` /
+`ExperimentUI.hudMethod`. To read the displayed value from custom
 code:
 
 ```csharp
 if (EyeTracking.Metrics.RIPAMonitor.Instance is { IsValid: true } m)
 {
-    float load = m.CurrentLoad; // smoothed RIPA2, clipped to [0, 1.5]
+    float load = m.CurrentLoad; // smoothed, clipped to [0, 1.5]
+    // Or look up a specific detector:
+    // m.GetDetector(CognitiveLoadMethod.Butterworth)?.CurrentSmoothed
 }
 ```
 
-For the gauge prefab, opting out of the auto-bootstrap, custom CSV
-columns via `SessionRecorder.RegisterMetric`, and the Python
+For the gauge prefab, the per-method CSV columns, the device-bandwidth
+caveat on HMD eye trackers, custom columns via
+`SessionRecorder.RegisterMetric`, and the Python
 `eyelean_analysis.metrics.ripa2` parity layer, see
 [`docs/RIPA_MONITOR.md`](../../../docs/RIPA_MONITOR.md).
 

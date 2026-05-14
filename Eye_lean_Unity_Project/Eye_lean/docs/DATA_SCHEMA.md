@@ -218,6 +218,28 @@ P001,0,VisualSearch,trial_2,SampleExperiment,false
 
 ---
 
+### 11. Cognitive Load (6 fields, v1.0.1+)
+
+Registered between `DataSampleCount` and `GazedObjectName` by
+`RIPACSVColumn`. All values smoothed and clipped to `[0, 1.5]` except
+`LiveLoadIndex_BW_Raw` (raw LF/HF ratio).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `LiveLoadIndex` | float | Alias of the displayed detector's smoothed value (back-compat with v1.0–v1.3 tooling). |
+| `LiveLoadIndex_RIPA2` | float | RIPA2 smoothed (Jayawardena, Jayawardana & Gwizdka 2025). Default HUD method. |
+| `LiveLoadIndex_BW` | float | Butterworth IIR LF/HF smoothed (Duchowski 2026 Listing 3). |
+| `LiveLoadIndex_BW_Raw` | float | Butterworth raw LF/HF power ratio (uncapped within `[0, lfHfMaxRatio]`). |
+| `LiveLoadIndex_FFT` | float | FFT periodogram LF/HF smoothed (Duchowski 2026 Listing 1). Zero for the first ~34 s of a session (warm-up). |
+| `LiveLoadIndex_DWT` | float | db4 DWT LF/HF energy ratio smoothed (Duchowski 2026 Listing 2). Same warm-up as FFT. |
+
+See [docs/RIPA_MONITOR.md](../../../docs/RIPA_MONITOR.md) for the
+detector pipelines, the device-bandwidth caveat for LF/HF methods on
+HMD eye trackers, and the inspector knobs for the cap / smoothing
+scale.
+
+---
+
 ## Data Quality Indicators
 
 ### Validity Flags

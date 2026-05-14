@@ -100,9 +100,13 @@ CSV header lines (always-on for v1.3+):
   `CoordinateOriginSet:True` claim is honest for every row.
 - **Custom metadata** populated via `SetMetadata` is inserted between
   session-context columns and head-pose columns.
-- **Registered metrics** (e.g. `LiveLoadIndex` from `RIPACSVColumn`)
-  are inserted between `DataSampleCount` and `GazedObjectName`. Order
-  follows registration call order.
+- **Registered metrics** are inserted between `DataSampleCount` and
+  `GazedObjectName`. Order follows registration call order. The
+  bootstrap-installed `RIPACSVColumn` contributes `LiveLoadIndex`
+  (alias of the displayed detector, back-compat with v1.0–v1.3) plus
+  per-detector columns `LiveLoadIndex_RIPA2`, `LiveLoadIndex_BW`,
+  `LiveLoadIndex_BW_Raw`, `LiveLoadIndex_FFT`, `LiveLoadIndex_DWT`
+  (v1.0.1+).
 - **`SceneStateRecorder` + `SceneEventRecorder`** subscribe to
   `OnHeaderWritten` to lock their own schemas in lockstep.
 - **`ReplayMode.IsActive` short-circuit:** during deterministic
