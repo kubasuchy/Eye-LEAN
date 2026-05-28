@@ -107,6 +107,145 @@ File: `Assets/Scripts/Replay/Core/ReplayGazeRaycaster.cs`
   drops a colored placeholder cube at the recorded transform. The visualizer
   keeps working.
 
+## Universal Replay Contract (for new experiments)
+
+If you're building a new experiment scene on Eye-LEAN and want it to be
+replay-compatible out of the box, your controller scripts must follow the
+seven rules below. Following them makes replay "just work" — no replay-
+specific code paths needed, no special handlers. The proof: SampleExperiment
+and the N-back experiment both follow this contract and share the same
+universal replay infrastructure with no code paths that say `if (NBack)…`.
+
+The toggle the researcher uses to switch a scene between live recording and
+editor replay is **EyeTracker vs ReplayController**:
+
+| Component active | Mode |
+|---|---|
+| EyeTracker enabled | Live recording — build to HMD |
+| ReplayController enabled | Editor replay — deterministic playback |
+
+When `ReplayController` is in the scene and active, `ReplayMode.IsActive`
+becomes `true` before any researcher script wakes (the controller has
+`[DefaultExecutionOrder(-1000)]`). All seven rules below assume this gating
+mechanism.
+
+### Rule 1: Do NOT disable yourself during replay
+
+Your experiment controller must stay **enabled** during replay. Its coroutines
+ARE the replay — they reproduce the participant's experience by running the
+same code paths against recorded inputs. Never do this:
+
+```csharp
+// WRONG — disabling breaks deterministic re-execution
+private void Awake() {
+    if (ReplayMode.IsActive) { enabled = false; return; }
+}
+```
+
+### Rule 2: Gate live input, not logic
+
+The participant isn't there to press buttons during replay. Gate input
+handlers on `ReplayMode.IsActive`:
+
+```csharp
+private void OnRespondPerformed(InputAction.CallbackContext _)
+{
+    if (EyeLean.Replay.SceneState.ReplayMode.IsActive) return;
+    // ...accept response...
+}
+```
+
+Logic (stimulus presentation, phase transitions, scoring) runs unchanged.
+
+### Rule 3: Gate recording, not execution
+
+Don't skip `SetMetadata`, `SetSessionContext`, or `RecordKV` calls during
+replay. `SessionRecorder` already suppresses CSV writes when
+`ReplayMode.IsActive` is true. Skipping these calls would create divergent
+state between recording and replay paths — exactly what we're trying to
+avoid.
+
+### Rule 4: Use EyeTrackerFactory for gaze queries
+
+Never cache a direct reference to a specific `IEyeTracker` implementation.
+Always go through:
+
+```csharp
+var tracker = EyeTracking.Core.EyeTrackerFactory.GetEyeTracker();
+```
+
+During replay, the factory transparently returns `ReplayingEyeTracker` (which
+serves recorded samples). This is the single substitution point that makes
+gaze-driven gameplay work identically in live and replay modes.
+
+### Rule 5: Use UnityEngine.Random (not System.Random) for stimulus generation
+
+`SceneEventReplayer` restores `UnityEngine.Random.state` from the recorded
+snapshot before any phase coroutine fires. `System.Random` instances are NOT
+restored — they use their own seed, which is fine for things like block
+order shuffling (config-deterministic from a seed in your config asset) but
+breaks anything that relies on per-frame randomness.
+
+### Rule 6: Defer world-space UI placement until replay camera is ready
+
+During replay, `Camera.main` starts at the scene-default position and only
+jumps to the recorded HMD pose once `ReplayController` advances past the
+first few frames. If you place world-space panels before that, they'll
+anchor to the wrong location.
+
+The canonical pattern: wait for `ReplayController.IsPlaying` and skip the
+first ~30 frames before placing world-space UI:
+
+```csharp
+private IEnumerator PlacePanelsThenShow()
+{
+    if (ReplayMode.IsActive)
+    {
+        var rc = FindFirstObjectByType<EyeLean.Replay.ReplayController>();
+        if (rc != null)
+        {
+            float timeout = Time.realtimeSinceStartup + 30f;
+            while (!rc.IsPlaying && Time.realtimeSinceStartup < timeout)
+                yield return null;
+            for (int i = 0; i < 30; i++) yield return null;
+        }
+    }
+    else
+    {
+        var readiness = EyeTracking.Core.VRReadinessService.Instance;
+        if (readiness != null) yield return readiness.WaitForCameraReady(8f);
+    }
+    // ...place panels now...
+}
+```
+
+### Rule 7: Auto-start your experiment during replay
+
+The participant isn't there to press the start trigger. If your controller
+normally waits for input to begin, bypass that wait when replaying:
+
+```csharp
+if (ReplayMode.IsActive || autoStart)
+    StartExperiment();
+else
+    ShowIdleMessage();
+```
+
+### Verifying contract compliance
+
+Drop a `ReplayController` into your scene, point it at a recorded CSV, and
+press Play in the editor. You should see:
+
+- Your panels appearing at the participant's actual recorded head position
+- Stimulus/phase coroutines firing at the recorded cadence
+- The cognitive-load gauge (if present) updating from recorded pupil data
+- The `ReplayUI` control panel responding to play/pause/scrub
+- Pressing `Stop` reloads the scene and waits for `Play` — universal across
+  all experiments because it's implemented via `SceneManager.LoadScene`
+
+If any of those fail, check the rules above — most issues trace back to one
+of them.
+
 ## References
 
 - Source:

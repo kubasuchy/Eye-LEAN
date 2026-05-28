@@ -1,0 +1,10 @@
+{
+    "name": "EyeLean.NavigationMaze.Tests.Editor",
+    "rootNamespace": "EyeLean.NavigationMaze.Tests",
+    "references": [
+        "EyeLean.NavigationMaze",
+        "navlab.experiment-runtime"
+    ],
+    "includePlatforms": ["Editor"],
+    "optionalUnityReferences": ["TestAssemblies"]
+}

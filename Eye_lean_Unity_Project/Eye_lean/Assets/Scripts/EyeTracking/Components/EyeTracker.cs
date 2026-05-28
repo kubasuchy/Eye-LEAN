@@ -3,6 +3,7 @@ using EyeTracking.Core;
 using EyeTracking.Vergence;
 using EyeTracking.Data;          // DataQualityMetrics
 using EyeTracking.Configuration; // VergenceSettingsFile (used by editor menu paths)
+using EyeTracking.Metrics;       // RIPAOverlay (auto-spawn in Awake)
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -59,6 +60,12 @@ namespace EyeTracking.Components
         [SerializeField] private float maxRaycastDistance = 20f;
         [Tooltip("Distance the gaze sphere lands at when no surface is hit and the rays are parallel/diverging, in meters.")]
         [SerializeField] private float fallbackFarDistance = 5f;
+
+        [Header("Cognitive Load Monitor")]
+        [Tooltip("Spawn an on-screen RIPAOverlay for this scene. The RIPAMonitor and CSV recording are ALWAYS active regardless of this toggle (auto-spawned by RIPAMonitorBootstrap) — turning this off only hides the on-screen gauge. Leave off for scenes that already manage their own cognitive-load HUD (e.g., SampleExperiment's ExperimentUI inline gauge).")]
+        [SerializeField] private bool spawnCognitiveLoadOverlay = false;
+        [Tooltip("Screen corner the auto-spawned overlay anchors to. Ignored if spawnCognitiveLoadOverlay is off.")]
+        [SerializeField] private RIPAOverlay.Corner cognitiveLoadOverlayCorner = RIPAOverlay.Corner.TopLeft;
 
         // Visualization-only lateral offset (see class summary).
         private const float VizOriginLateralOffsetMeters = 0.08f;
@@ -157,6 +164,25 @@ namespace EyeTracking.Components
             {
                 Debug.LogWarning($"[EyeTracker] SessionRecorder missing on '{gameObject.name}' — runtime-adding it.");
                 gameObject.AddComponent<SessionRecorder>();
+            }
+
+            // On-screen cognitive-load gauge. Spawned as its own GameObject
+            // (with its own ScreenSpaceOverlay canvas) so it doesn't disturb
+            // the scene hierarchy under this rig. Runtime visibility is
+            // governed by RIPAMonitor.ShowOverlay — the overlay polls each
+            // frame, so any component can flip it without owning this GO.
+            if (spawnCognitiveLoadOverlay && FindFirstObjectByType<RIPAOverlay>() == null)
+            {
+                // Create the GameObject inactive, set the corner, then
+                // activate — so RIPAOverlay's OnEnable+Build see the
+                // chosen corner before baking the RectTransform anchors.
+                var overlayGO = new GameObject("[RIPAOverlay]");
+                overlayGO.SetActive(false);
+                UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(
+                    overlayGO, gameObject.scene);
+                var overlay = overlayGO.AddComponent<RIPAOverlay>();
+                overlay.SetCornerBeforeBuild(cognitiveLoadOverlayCorner);
+                overlayGO.SetActive(true);
             }
         }
 

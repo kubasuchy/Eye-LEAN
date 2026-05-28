@@ -1,0 +1,116 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f6c57c0db16f4523afe61e948ef56d1d, type: 3}
+  m_Name: MazeConfig_Default
+  m_EditorClassIdentifier: EyeLean.NavigationMaze::EyeLean.NavigationMaze.MazeConfig
+  gridSize: 5
+  corridorWidth: 2
+  wallHeight: 2.4
+  wallThickness: 0.1
+  distalLandmarks:
+  - name: North
+    shape: 0
+    color: {r: 1, g: 0, b: 0, a: 1}
+  - name: East
+    shape: 3
+    color: {r: 0, g: 0, b: 1, a: 1}
+  - name: South
+    shape: 1
+    color: {r: 0, g: 1, b: 0, a: 1}
+  - name: West
+    shape: 2
+    color: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  proximalLandmarkPool:
+  - Clock
+  - Painting
+  - Plant
+  - Sign
+  - Trophy
+  - Globe
+  maxProximalLandmarks: 6
+  distalLandmarkHeight: 5
+  distalLandmarkRadius: 0.4
+  proximalLandmarkHeight: 1.6
+  blocks:
+  - mode: 0
+    difficulty: 0
+    ceilingEnabled: 0
+    landmarkCondition: 0
+    npcEnabled: 0
+    trialsInBlock: 1
+    spawnGoalPlacement: 0
+    goalVisible: 1
+    sequentialGoalCount: 1
+    reusesPreviousBlockMaze: 0
+    mazeSeed: -1
+    trialDurationSeconds: 120
+  - mode: 1
+    difficulty: 0
+    ceilingEnabled: 0
+    landmarkCondition: 0
+    npcEnabled: 0
+    trialsInBlock: 4
+    spawnGoalPlacement: 0
+    goalVisible: 1
+    sequentialGoalCount: 1
+    reusesPreviousBlockMaze: 0
+    mazeSeed: -1
+    trialDurationSeconds: 120
+  - mode: 1
+    difficulty: 0
+    ceilingEnabled: 1
+    landmarkCondition: 1
+    npcEnabled: 0
+    trialsInBlock: 4
+    spawnGoalPlacement: 0
+    goalVisible: 1
+    sequentialGoalCount: 1
+    reusesPreviousBlockMaze: 0
+    mazeSeed: -1
+    trialDurationSeconds: 120
+  - mode: 4
+    difficulty: 0
+    ceilingEnabled: 0
+    landmarkCondition: 2
+    npcEnabled: 0
+    trialsInBlock: 1
+    spawnGoalPlacement: 0
+    goalVisible: 1
+    sequentialGoalCount: 1
+    reusesPreviousBlockMaze: 1
+    mazeSeed: -1
+    trialDurationSeconds: 120
+  - mode: 2
+    difficulty: 2
+    ceilingEnabled: 0
+    landmarkCondition: 0
+    npcEnabled: 0
+    trialsInBlock: 3
+    spawnGoalPlacement: 0
+    goalVisible: 1
+    sequentialGoalCount: 3
+    reusesPreviousBlockMaze: 0
+    mazeSeed: -1
+    trialDurationSeconds: 120
+  - mode: 3
+    difficulty: 2
+    ceilingEnabled: 0
+    landmarkCondition: 0
+    npcEnabled: 1
+    trialsInBlock: 3
+    spawnGoalPlacement: 0
+    goalVisible: 1
+    sequentialGoalCount: 1
+    reusesPreviousBlockMaze: 0
+    mazeSeed: -1
+    trialDurationSeconds: 120
+  sourceCitation: 

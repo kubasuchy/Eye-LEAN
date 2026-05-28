@@ -3,18 +3,24 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
-using EyeTracking.Components;
-using EyeTracking.Core;
 
 namespace EyeTracking.Metrics
 {
     /// <summary>
     /// Scene-scoped cognitive-load monitor. Pulls pupil samples each Update
-    /// from <see cref="EyeTracker"/> and fans them out to every enabled
-    /// <see cref="ICognitiveLoadDetector"/>. One detector is the
+    /// from an <see cref="IPupilSampleSource"/> and fans them out to every
+    /// enabled <see cref="ICognitiveLoadDetector"/>. One detector is the
     /// <see cref="DisplayedMethod"/>, whose value drives <see cref="CurrentLoad"/>
     /// and the HUD; all enabled detectors get a per-row CSV column via
     /// <see cref="RIPACSVColumn"/>.
+    ///
+    /// <para>Portability: this class has zero references to any specific
+    /// eye-tracker SDK. The single integration point is
+    /// <see cref="IPupilSampleSource"/>; researchers using non-Eye_lean
+    /// trackers (Pupil Labs, Tobii, etc.) assign their own implementation
+    /// to the <c>pupilSourceComponent</c> field. Eye_lean scenes fall back
+    /// to <see cref="EyeLeanPupilSampleSource"/> automatically when the
+    /// field is empty.</para>
     ///
     /// Detectors:
     ///   • <see cref="CognitiveLoadMethod.RIPA2"/> — v1.3+ default (Jayawardena 2025).
@@ -27,8 +33,9 @@ namespace EyeTracking.Metrics
     /// The "monitor still records when HUD is hidden" semantics carry over:
     /// each enabled detector runs every frame so the CSV columns are complete
     /// regardless of which detector is displayed. During deterministic
-    /// replay, the bootstrap skips spawning this monitor — recorded CSV
-    /// columns are the authoritative playback source.
+    /// replay, the monitor IS spawned and recomputes against the recorded
+    /// pupil stream surfaced by <c>ReplayingEyeTracker</c> (v1.0.1+), letting
+    /// researchers switch <see cref="DisplayedMethod"/> at replay time.
     ///
     /// Intentionally NOT DontDestroyOnLoad: scene-spanning eye-tracking
     /// components hold stale transforms after a scene reload and flood NREs.
@@ -105,8 +112,14 @@ namespace EyeTracking.Metrics
         [Tooltip("Minimum interval between OnLoadChanged events. The internal compute still runs every frame; this throttles the event for HUD update.")]
         [SerializeField] private float publishIntervalSeconds = 0.0f;
 
-        [Header("Component References (auto-found)")]
-        [SerializeField] private EyeTracker eyeTracker;
+        [Header("Overlay")]
+        [Tooltip("Whether the on-screen RIPAOverlay (if one exists in the scene) should be visible. The monitor and per-method CSV columns are ALWAYS active regardless of this toggle — turning it off only hides the gauge. Experiment-specific UIs (e.g., ExperimentUI's inline gauge) can set this to false in their Awake to take over visualization.")]
+        [SerializeField] private bool showOverlay = true;
+
+        [Header("Pupil data source")]
+        [Tooltip("Optional MonoBehaviour implementing IPupilSampleSource. If unassigned, defaults to EyeLeanPupilSampleSource (Eye_lean's EyeTracker + EyeTrackerFactory). External projects substitute their own adapter (e.g., Pupil Labs, Tobii) by assigning a MonoBehaviour that implements IPupilSampleSource here.")]
+        [SerializeField] private MonoBehaviour pupilSourceComponent;
+        private IPupilSampleSource pupilSource;
 
         public FloatEvent OnLoadChanged;
 
@@ -138,6 +151,17 @@ namespace EyeTracking.Metrics
         {
             get => enableMonitor;
             set => enableMonitor = value;
+        }
+
+        /// <summary>
+        /// Runtime visibility toggle for the auto-spawned RIPAOverlay.
+        /// Recording / detector compute are unaffected — only the on-
+        /// screen gauge listens to this. Polled each frame by RIPAOverlay.
+        /// </summary>
+        public bool ShowOverlay
+        {
+            get => showOverlay;
+            set => showOverlay = value;
         }
 
         public CognitiveLoadMethod DisplayedMethod
@@ -228,10 +252,28 @@ namespace EyeTracking.Metrics
 
         private void Start()
         {
-            if (eyeTracker == null) eyeTracker = GetComponent<EyeTracker>() ?? FindFirstObjectByType<EyeTracker>();
+            ResolvePupilSource();
             ResolveSampleRate();
             BuildDetectors();
             lastPublishTime = Time.unscaledTime;
+        }
+
+        private void ResolvePupilSource()
+        {
+            if (pupilSourceComponent is IPupilSampleSource src)
+            {
+                pupilSource = src;
+                return;
+            }
+            if (pupilSourceComponent != null)
+            {
+                Debug.LogWarning($"[RIPAMonitor] pupilSourceComponent '{pupilSourceComponent.GetType().Name}' does not implement IPupilSampleSource. Falling back to EyeLeanPupilSampleSource.");
+            }
+            // Default: Eye_lean adapter (wraps EyeTracker MonoBehaviour +
+            // EyeTrackerFactory). External Unity projects without Eye_lean
+            // assign their own IPupilSampleSource MonoBehaviour above; the
+            // default just keeps unconfigured Eye_lean scenes working.
+            pupilSource = new EyeLeanPupilSampleSource();
         }
 
         private void BuildDetectors()
@@ -341,20 +383,17 @@ namespace EyeTracking.Metrics
         private void ResolveSampleRate()
         {
             if (sampleRateOverrideHz > 0f) { resolvedSampleRateHz = sampleRateOverrideHz; return; }
-            // Try the live tracker for a native rate.
-            try
+            if (pupilSource != null && pupilSource.SamplingRateHz > 1f)
             {
-                IEyeTracker tracker = EyeTrackerFactory.GetEyeTracker();
-                if (tracker != null && tracker.SamplingRateHz > 1f)
-                {
-                    resolvedSampleRateHz = tracker.SamplingRateHz;
-                    return;
-                }
+                resolvedSampleRateHz = pupilSource.SamplingRateHz;
+                return;
             }
-            catch (Exception) { /* fall through */ }
             // Sensible default that fits VIVE Focus Vision and most modern HMDs.
             resolvedSampleRateHz = 60f;
         }
+
+        private double lastReplayPupil = double.NaN;
+        private int replayDuplicateCount;
 
         private void Update()
         {
@@ -363,8 +402,13 @@ namespace EyeTracking.Metrics
             double pupil = SamplePupilDiameter();
             if (!double.IsNaN(pupil) && pupil > 0.0)
             {
-                for (int i = 0; i < activeDetectors.Count; i++) activeDetectors[i].PushSample(pupil);
-                diagPushedSamples++;
+                bool skipPush = EyeLean.Replay.SceneState.ReplayMode.IsActive && pupil == lastReplayPupil;
+                if (EyeLean.Replay.SceneState.ReplayMode.IsActive) lastReplayPupil = pupil;
+                if (!skipPush)
+                {
+                    for (int i = 0; i < activeDetectors.Count; i++) activeDetectors[i].PushSample(pupil);
+                    diagPushedSamples++;
+                }
             }
             else
             {
@@ -412,33 +456,13 @@ namespace EyeTracking.Metrics
             catch (Exception e) { Debug.LogException(e); }
         }
 
-        // Average the per-eye pupil diameters that report valid this frame.
+        // Latest binocular-averaged pupil sample in mm, or NaN if the
+        // configured IPupilSampleSource is reporting no valid eyes this
+        // frame. All Eye_lean / Pupil-Labs / Tobii / etc. specifics live
+        // in the source implementation; the monitor doesn't care.
         private double SamplePupilDiameter()
         {
-            if (eyeTracker != null)
-            {
-                EyeFrameSample s = eyeTracker.SampleSnapshot();
-                bool hasL = s.HasLeftValid && s.LeftPupilDiameter > 0f && !float.IsNaN(s.LeftPupilDiameter);
-                bool hasR = s.HasRightValid && s.RightPupilDiameter > 0f && !float.IsNaN(s.RightPupilDiameter);
-                if (hasL && hasR) return (s.LeftPupilDiameter + s.RightPupilDiameter) * 0.5;
-                if (hasL) return s.LeftPupilDiameter;
-                if (hasR) return s.RightPupilDiameter;
-                return double.NaN;
-            }
-            // Fallback for scenes without an EyeTracker MonoBehaviour;
-            // the IEyeTracker factory is always populated.
-            try
-            {
-                var tracker = EyeTrackerFactory.GetEyeTracker();
-                if (tracker == null || !tracker.IsAvailable) return double.NaN;
-                bool hasL = tracker.GetLeftPupilDiameter(out float lmm) && lmm > 0f;
-                bool hasR = tracker.GetRightPupilDiameter(out float rmm) && rmm > 0f;
-                if (hasL && hasR) return (lmm + rmm) * 0.5;
-                if (hasL) return lmm;
-                if (hasR) return rmm;
-            }
-            catch (Exception) { /* fall through to NaN */ }
-            return double.NaN;
+            return pupilSource != null ? pupilSource.GetLatestPupilDiameterMm() : double.NaN;
         }
     }
 }

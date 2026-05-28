@@ -1,0 +1,21 @@
+{
+    "name": "EyeLean.NavigationMaze",
+    "rootNamespace": "",
+    "references": [
+        "EyeLean.Core",
+        "EyeLean.Replay",
+        "Unity.TextMeshPro",
+        "Unity.InputSystem",
+        "navlab.experiment-runtime",
+        "navlab.planners"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

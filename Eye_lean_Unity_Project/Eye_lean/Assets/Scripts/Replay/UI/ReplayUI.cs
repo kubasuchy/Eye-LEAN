@@ -108,6 +108,13 @@ namespace EyeLean.Replay.UI
             SubscribeToEvents();
             RefreshFileList();
             UpdateUI();
+
+            if (replayController != null && replayController.Session != null)
+            {
+                dataLoaded = true;
+                PopulateTaskDropdown();
+                if (taskDropdown != null) taskDropdown.interactable = true;
+            }
         }
 
         private void Update()
@@ -126,30 +133,41 @@ namespace EyeLean.Replay.UI
 
         private void CreateUI()
         {
-            // Create or find canvas
+            // Use a dedicated ReplayUICanvas regardless of whether other
+            // ScreenSpaceOverlay canvases exist in the scene (e.g.,
+            // RIPAOverlay creates one without a GraphicRaycaster). Reusing
+            // a found canvas was an over-optimization — the post-condition
+            // that it has the raycaster we need can't be guaranteed.
             if (uiCanvas == null)
             {
-                var existingCanvas = FindFirstObjectByType<Canvas>();
-                if (existingCanvas != null && existingCanvas.renderMode == RenderMode.ScreenSpaceOverlay)
-                {
-                    uiCanvas = existingCanvas;
-                }
-                else
-                {
-                    var canvasObj = new GameObject("ReplayUICanvas");
-                    uiCanvas = canvasObj.AddComponent<Canvas>();
-                    uiCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
-                    canvasObj.AddComponent<CanvasScaler>();
-                    canvasObj.AddComponent<GraphicRaycaster>();
-                }
+                var canvasObj = new GameObject("ReplayUICanvas");
+                uiCanvas = canvasObj.AddComponent<Canvas>();
+                uiCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+                uiCanvas.sortingOrder = 10000; // above RIPAOverlay (9999)
+                canvasObj.AddComponent<CanvasScaler>();
+                canvasObj.AddComponent<GraphicRaycaster>();
+            }
+            else if (uiCanvas.GetComponent<GraphicRaycaster>() == null)
+            {
+                uiCanvas.gameObject.AddComponent<GraphicRaycaster>();
             }
 
-            // Ensure EventSystem exists (required for UI interaction)
-            if (FindFirstObjectByType<EventSystem>() == null)
+            // Ensure an EventSystem with the new Input System UI module is
+            // present. The project uses the new Input System exclusively
+            // (activeInputHandler=1); a legacy StandaloneInputModule would
+            // silently drop clicks.
+            var existingEs = FindFirstObjectByType<EventSystem>();
+            if (existingEs == null)
             {
                 var eventSystemObj = new GameObject("EventSystem");
                 eventSystemObj.AddComponent<EventSystem>();
                 eventSystemObj.AddComponent<InputSystemUIInputModule>();
+            }
+            else if (existingEs.GetComponent<InputSystemUIInputModule>() == null)
+            {
+                var legacy = existingEs.GetComponent<StandaloneInputModule>();
+                if (legacy != null) Destroy(legacy);
+                existingEs.gameObject.AddComponent<InputSystemUIInputModule>();
             }
 
             // Create main panel
@@ -443,7 +461,11 @@ namespace EyeLean.Replay.UI
 
             dropdown.captionText = labelTmp;
 
-            // Template (basic)
+            // Template + ScrollRect: TMP_Dropdown spawns items into the
+            // content RectTransform when opened; the ScrollRect's vertical
+            // drag drives content offset against the masked viewport. Mouse
+            // wheel scroll is handled by ScrollRect automatically. Without
+            // a ScrollRect on the template, items render but cannot scroll.
             var template = new GameObject("Template");
             template.transform.SetParent(obj.transform, false);
             template.SetActive(false);
@@ -461,7 +483,10 @@ namespace EyeLean.Replay.UI
             viewportRect.anchorMin = Vector2.zero;
             viewportRect.anchorMax = Vector2.one;
             viewportRect.sizeDelta = Vector2.zero;
-            viewport.AddComponent<Mask>().showMaskGraphic = false;
+            // Mask without a graphic clips children but renders nothing of
+            // its own. ScrollRect uses this rect as its viewport.
+            var viewportMask = viewport.AddComponent<Mask>();
+            viewportMask.showMaskGraphic = false;
             viewport.AddComponent<Image>();
 
             var content = new GameObject("Content");
@@ -471,6 +496,14 @@ namespace EyeLean.Replay.UI
             contentRect.anchorMax = new Vector2(1, 1);
             contentRect.pivot = new Vector2(0.5f, 1);
             contentRect.sizeDelta = new Vector2(0, 28);
+
+            var scrollRect = template.AddComponent<ScrollRect>();
+            scrollRect.viewport = viewportRect;
+            scrollRect.content = contentRect;
+            scrollRect.horizontal = false;
+            scrollRect.vertical = true;
+            scrollRect.movementType = ScrollRect.MovementType.Clamped;
+            scrollRect.scrollSensitivity = 20f;
 
             var item = new GameObject("Item");
             item.transform.SetParent(content.transform, false);
@@ -551,6 +584,13 @@ namespace EyeLean.Replay.UI
             {
                 replayController.OnStateChanged += OnReplayStateChanged;
                 replayController.OnPhaseChanged += OnPhaseChangedHandler;
+                // When no ReplayManager is present, subscribe directly to
+                // ReplayController.OnLoadComplete so the task dropdown
+                // populates from the session frames.
+                if (replayManager == null)
+                {
+                    replayController.OnLoadComplete += OnDataLoaded;
+                }
             }
         }
 
@@ -564,6 +604,10 @@ namespace EyeLean.Replay.UI
 
             if (replayController != null)
             {
+                if (replayManager == null)
+                {
+                    replayController.OnLoadComplete -= OnDataLoaded;
+                }
                 replayController.OnStateChanged -= OnReplayStateChanged;
                 replayController.OnPhaseChanged -= OnPhaseChangedHandler;
             }
@@ -662,19 +706,25 @@ namespace EyeLean.Replay.UI
 
         private void OnTaskFilterChanged(int index)
         {
-            if (replayManager == null || taskDropdown == null) return;
+            if (taskDropdown == null) return;
 
             if (index == 0)
             {
-                // "All Tasks" selected - clear filter
-                replayManager.SetFilter(ReplayManager.PlaybackScope.EntireRecording);
+                if (replayManager != null)
+                    replayManager.SetFilter(ReplayManager.PlaybackScope.EntireRecording);
+                else
+                    replayController?.ClearFilter();
+                return;
             }
-            else
-            {
-                // Filter to specific task (phase)
-                string selectedTask = replayManager.availablePhases[index - 1];
+
+            int phaseIdx = index - 1;
+            if (phaseIdx < 0 || phaseIdx >= dropdownPhases.Count) return;
+            string selectedTask = dropdownPhases[phaseIdx];
+
+            if (replayManager != null)
                 replayManager.SetFilter(ReplayManager.PlaybackScope.SpecificPhase, selectedTask);
-            }
+            else
+                replayController?.SetPlaybackFilter(selectedTask, null);
         }
 
         private void OnReplayStateChanged(ReplayState state)
@@ -716,14 +766,35 @@ namespace EyeLean.Replay.UI
             }
         }
 
+        // Phase names backing the task dropdown indices (excluding the
+        // "All Tasks" sentinel at index 0). Populated alongside the
+        // dropdown so OnTaskFilterChanged can resolve index → phase
+        // without re-querying the manager / session.
+        private List<string> dropdownPhases = new List<string>();
+
         private void PopulateTaskDropdown()
         {
-            if (taskDropdown == null || replayManager == null) return;
+            if (taskDropdown == null) return;
+
+            dropdownPhases.Clear();
+            if (replayManager != null)
+            {
+                dropdownPhases.AddRange(replayManager.availablePhases);
+            }
+            else if (replayController != null && replayController.Session != null)
+            {
+                var seen = new HashSet<string>();
+                foreach (var frame in replayController.Session.frames)
+                {
+                    if (!string.IsNullOrEmpty(frame.phase) && seen.Add(frame.phase))
+                        dropdownPhases.Add(frame.phase);
+                }
+                dropdownPhases.Sort();
+            }
 
             taskDropdown.ClearOptions();
-
             var options = new List<string> { "All Tasks" };
-            options.AddRange(replayManager.availablePhases);
+            options.AddRange(dropdownPhases);
             taskDropdown.AddOptions(options);
         }
 
@@ -798,26 +869,39 @@ namespace EyeLean.Replay.UI
         {
             availableFiles.Clear();
 
-            string streamingPath = Application.streamingAssetsPath;
-
-            if (Directory.Exists(streamingPath))
+            if (replayController != null && !string.IsNullOrEmpty(replayController.dataFilePath))
             {
-                string[] csvFiles = Directory.GetFiles(streamingPath, "*.csv");
-
-                foreach (string file in csvFiles)
+                string path = replayController.dataFilePath;
+                if (System.IO.File.Exists(path))
                 {
-                    availableFiles.Add(Path.GetFileName(file));
+                    availableFiles.Add(path);
+                }
+                else
+                {
+                    string streamingPath = System.IO.Path.Combine(Application.streamingAssetsPath, path);
+                    if (System.IO.File.Exists(streamingPath))
+                        availableFiles.Add(System.IO.Path.GetFileName(path));
                 }
             }
 
-            // Update dropdown
+            string saPath = Application.streamingAssetsPath;
+            if (Directory.Exists(saPath))
+            {
+                foreach (string file in Directory.GetFiles(saPath, "*.csv"))
+                {
+                    string name = Path.GetFileName(file);
+                    if (!availableFiles.Contains(name) && !availableFiles.Contains(file))
+                        availableFiles.Add(name);
+                }
+            }
+
             if (fileDropdown != null)
             {
                 fileDropdown.ClearOptions();
                 fileDropdown.AddOptions(availableFiles);
             }
 
-            Debug.Log($"[ReplayUI] Found {availableFiles.Count} CSV files in StreamingAssets");
+            Debug.Log($"[ReplayUI] Found {availableFiles.Count} CSV files");
         }
 
         #endregion

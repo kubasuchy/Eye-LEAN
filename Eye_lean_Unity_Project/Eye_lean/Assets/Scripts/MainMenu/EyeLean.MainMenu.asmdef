@@ -2,7 +2,9 @@
     "name": "EyeLean.MainMenu",
     "rootNamespace": "",
     "references": [
-        "EyeLean.Core"
+        "EyeLean.Core",
+        "Unity.TextMeshPro",
+        "Unity.InputSystem"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

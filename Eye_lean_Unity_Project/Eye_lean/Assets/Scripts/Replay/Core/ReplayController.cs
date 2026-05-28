@@ -86,6 +86,16 @@ namespace EyeLean.Replay
         [Tooltip("Hide the avatar sphere when the first-person camera is active so the camera isn't sitting inside it. Has no effect if firstPersonCamera is OFF.")]
         public bool hideAvatarInFirstPerson = true;
 
+        [Header("Replay HUD")]
+        [Tooltip("Auto-spawn the ReplayUI control panel (play/pause/scrub/speed) when no ReplayUI exists in the scene.")]
+        [SerializeField] private bool spawnReplayUI = true;
+
+        [Tooltip("Auto-spawn the cognitive load overlay gauge. Independent of EyeTracker's overlay — works during replay when EyeTracker is inactive.")]
+        [SerializeField] private bool spawnCognitiveLoadOverlay = true;
+
+        [Tooltip("Which cognitive load detector to display on the overlay gauge during replay.")]
+        [SerializeField] private EyeTracking.Metrics.CognitiveLoadMethod cognitiveLoadMethod = EyeTracking.Metrics.CognitiveLoadMethod.RIPA2;
+
         [Header("Ray Origin Mode")]
         [Tooltip("ON (default): draw rays from headPos ± rotation*right * lateralOffset, matching the live EyeTracker viz-offset trick. Immunizes Replay against the OpenXR coord-frame race that occasionally drops a frame's per-eye origin into tracking-space (floor-level) instead of world-space. OFF: use the raw LeftOrigin/RightOrigin values from the CSV — useful for raw-data debugging.")]
         public bool useHeadAnchoredRayOrigin = true;
@@ -239,10 +249,40 @@ namespace EyeLean.Replay
             CreateVisualizationObjects();
             HideVisualization();
             ResolveReplayCameraOnce();
+            SpawnReplayHUD();
 
             if (autoLoadOnStart && !string.IsNullOrEmpty(dataFilePath))
             {
                 LoadData(dataFilePath);
+            }
+        }
+
+        private void SpawnReplayHUD()
+        {
+            if (spawnReplayUI && FindFirstObjectByType<EyeLean.Replay.UI.ReplayUI>() == null)
+            {
+                var uiGO = new GameObject("[ReplayUI]");
+                UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(uiGO, gameObject.scene);
+                var ui = uiGO.AddComponent<EyeLean.Replay.UI.ReplayUI>();
+                ui.replayController = this;
+                Debug.Log("[ReplayController] Auto-spawned ReplayUI.");
+            }
+
+            if (spawnCognitiveLoadOverlay && FindFirstObjectByType<EyeTracking.Metrics.RIPAOverlay>() == null)
+            {
+                var overlayGO = new GameObject("[RIPAOverlay]");
+                overlayGO.SetActive(false);
+                UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(overlayGO, gameObject.scene);
+                overlayGO.AddComponent<EyeTracking.Metrics.RIPAOverlay>();
+                overlayGO.SetActive(true);
+                Debug.Log("[ReplayController] Auto-spawned RIPAOverlay for cognitive load visualization.");
+            }
+
+            var monitor = FindFirstObjectByType<EyeTracking.Metrics.RIPAMonitor>();
+            if (monitor != null)
+            {
+                monitor.DisplayedMethod = cognitiveLoadMethod;
+                Debug.Log($"[ReplayController] Cognitive load display set to {cognitiveLoadMethod}.");
             }
         }
 
@@ -382,6 +422,16 @@ namespace EyeLean.Replay
         /// <summary>
         /// Start or resume playback
         /// </summary>
+        // Set when Stop reloads the scene; checked in Start so the new
+        // ReplayController instance loads data but does NOT autoplay,
+        // matching the user's expectation that Stop means "halt and stay
+        // halted until Play is pressed."
+        private static bool suppressNextAutoPlay;
+
+        // Captured before we set Time.timeScale = 0 on Pause so Resume
+        // restores the original value rather than hard-forcing 1.
+        private float preserveTimeScale = 1f;
+
         public void Play()
         {
             if (!IsReady)
@@ -392,34 +442,38 @@ namespace EyeLean.Replay
 
             if (currentState == ReplayState.Complete)
             {
-                // Restart from beginning
                 SeekToFrame(0);
             }
 
             SetState(ReplayState.Playing);
             playbackStartTime = Time.time - currentPlaybackTime;
 
+            // Restore game time so experiment coroutines (WaitForSeconds,
+            // Time.deltaTime) thaw alongside the replay's frame advancement.
+            if (Mathf.Approximately(Time.timeScale, 0f))
+            {
+                Time.timeScale = preserveTimeScale > 0f ? preserveTimeScale : 1f;
+            }
+
             ShowVisualization();
 
-            if (debugMode)
-            {
-                Debug.Log($"[ReplayController] Playing from frame {currentFrameIndex}");
-            }
+            if (debugMode) Debug.Log($"[ReplayController] Playing from frame {currentFrameIndex}");
         }
 
         /// <summary>
-        /// Pause playback
+        /// Pause playback. Freezes <c>Time.timeScale</c> so every coroutine
+        /// in the scene (including replayed experiment loops) pauses
+        /// universally — the only mechanism that works without requiring
+        /// each experiment to opt in.
         /// </summary>
         public void Pause()
         {
             if (currentState == ReplayState.Playing)
             {
                 SetState(ReplayState.Paused);
-
-                if (debugMode)
-                {
-                    Debug.Log($"[ReplayController] Paused at frame {currentFrameIndex}");
-                }
+                preserveTimeScale = Time.timeScale > 0f ? Time.timeScale : 1f;
+                Time.timeScale = 0f;
+                if (debugMode) Debug.Log($"[ReplayController] Paused at frame {currentFrameIndex}");
             }
         }
 
@@ -435,18 +489,30 @@ namespace EyeLean.Replay
         }
 
         /// <summary>
-        /// Stop playback and reset to beginning
+        /// Stop playback and reset everything to the beginning. During
+        /// deterministic replay this reloads the active scene — the only
+        /// universal way to reset experiment coroutines, RIPA detector
+        /// state, and any other live state owned by replayed components.
         /// </summary>
         public void Stop()
         {
+            if (debugMode) Debug.Log("[ReplayController] Stopped");
+
+            // Always restore time so a paused state doesn't carry across.
+            if (Mathf.Approximately(Time.timeScale, 0f)) Time.timeScale = 1f;
+
+            if (deterministicReplay && EyeLean.Replay.SceneState.ReplayMode.IsActive)
+            {
+                suppressNextAutoPlay = true;
+                EyeLean.Replay.SceneState.ReplayMode.End();
+                var active = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+                UnityEngine.SceneManagement.SceneManager.LoadScene(active.name);
+                return;
+            }
+
             SetState(ReplayState.Ready);
             SeekToFrame(0);
             HideVisualization();
-
-            if (debugMode)
-            {
-                Debug.Log("[ReplayController] Stopped");
-            }
         }
 
         /// <summary>
@@ -773,10 +839,11 @@ namespace EyeLean.Replay
 
             OnLoadComplete?.Invoke(session);
 
-            if (autoPlayOnLoad)
+            if (autoPlayOnLoad && !suppressNextAutoPlay)
             {
                 Play();
             }
+            suppressNextAutoPlay = false;
         }
 
         #endregion

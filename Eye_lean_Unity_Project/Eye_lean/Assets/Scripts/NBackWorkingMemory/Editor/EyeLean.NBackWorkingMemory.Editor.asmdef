@@ -1,0 +1,20 @@
+{
+    "name": "EyeLean.NBackWorkingMemory.Editor",
+    "rootNamespace": "",
+    "references": [
+        "EyeLean.Core",
+        "EyeLean.NBackWorkingMemory",
+        "Unity.TextMeshPro"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

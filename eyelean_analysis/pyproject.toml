@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "eyelean-analysis"
-version = "1.0.0"
+version = "1.1.0"
 description = "Analysis toolkit for EYE-LEAN (Locomotion, Exploration, Action, and Navigation with Eye Tracking) — Python half of the Eye_lean VR behavioral-research toolkit"
 readme = "README.md"
 license = {text = "MIT"}

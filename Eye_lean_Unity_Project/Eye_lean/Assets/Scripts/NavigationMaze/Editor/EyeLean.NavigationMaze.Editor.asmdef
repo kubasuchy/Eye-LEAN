@@ -1,0 +1,22 @@
+{
+    "name": "EyeLean.NavigationMaze.Editor",
+    "rootNamespace": "",
+    "references": [
+        "EyeLean.Core",
+        "EyeLean.NavigationMaze",
+        "navlab.experiment-runtime",
+        "navlab.planners",
+        "Unity.TextMeshPro"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

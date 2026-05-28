@@ -9,14 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- World-fixed scene placement: room, UI panels, and answer rows now sit parallel to the back wall regardless of head heading at scene-load.
-- Visual search: per-trial schedule interleaves color pop-out, shape pop-out, and conjunction trials over an 8 → 28 set-size sweep.
-- Calibration: post-fit verification trusts the same-sample fit residual when the small-sample re-test regresses by sampling noise.
-- Calibration: rewrite of the offset/gain fit. `OffsetEstimator` now runs a Theil-Sen joint offset+gain regression per axis and composes the result cumulatively with the prior profile. Verification gate switched to median-only (the 5pp accuracy-pct gate flipped on binomial noise). Gain estimation is gated on per-axis sample count, total eccentricity span, and the interquartile range of measured-axis values — the IQR gate prevents noise-driven gain blowup when the bulk of fixation samples sits in a tight central cluster with one or two outlier targets at each extreme. `[ActiveProfile] Applied` log line now surfaces gain alongside offset so non-unit gains are visible at runtime.
-- Analysis: `fixation_entropy` returns paired SGE + GTE per Shiferaw 2019 / Krejtz 2015; `analyze_sample_experiment` reports both per phase.
-- Analysis: K-coefficient warns and returns `UNKNOWN` without `pooled_stats`; notebooks 04/05 rewritten for per-phase analysis.
-- Analysis: loader `low_memory=False`; batch pupil averaging masks before division.
-- Analysis: new `gaze_heatmap_2d`, `gaze_heatmap_3d_projections`, `aoi_heatmap`, and `list_gazed_objects` helpers; notebook 10 walks through all three views with a per-object dropdown.
+---
+
+## [1.1.0] - 2026-05-28
+
+This release adds two new shippable experiment scenes (N-back working memory + Navigation Maze), redesigns the launcher, and lands a universal deterministic-replay contract that lets any new experiment built on Eye-LEAN replay out of the box. It also introduces two canonical UI widgets (`RIPAGauge`, `WorldInstructionPanel`) that consolidate previously-duplicated implementations across scenes.
+
+### New experiments
+
+- **N-back working memory** (`NBackScene`). Jayawardena 2025 paper-exact protocol with 0/1/2/3-back load levels plus a passive-viewing baseline that frequency-matches stimulus rhythm. Per-trial signal-detection metrics (d-prime, log-linear corrected hit / false-alarm rates), per-block result JSON for analysis joins, and live cognitive-load gauge for online monitoring. Includes deterministic stimulus stream generation with target-spacing constraints that prevent chain-copy artifacts.
+- **Navigation Maze** (`MazeScene`). Procedural 5×5 DFS-generated maze with block-based trial sequencing: Exploration, Wayfinding, Sequential-goal, Probe, and Competitive (NPC race) modes. Per-trial metadata includes optimal-path length, actual-path length, path efficiency, decision-point traversals, wrong turns, dead-end entries, backtrack count, landmark-fixation ratio (from real eye gaze, not head pose), and goal-reach time. Distal and proximal landmark conditions configurable per block. Editor WASD debug locomotion with capsule-cast wall collision for in-editor testing.
+
+### Universal deterministic replay contract
+
+- New 7-rule contract documented in `docs/REPLAY.md` for any experiment to opt into deterministic replay. Existing rules: stay enabled during replay (controller coroutines are the replay), gate live input only, use `EyeTrackerFactory` for gaze queries, use `UnityEngine.Random` for stimulus generation, defer world-space UI placement until `ReplayController.IsPlaying`, auto-start during replay.
+- `ReplayController` auto-spawns `ReplayUI` and a cognitive-load overlay; the displayed detector method is selectable via Inspector dropdown. `Stop` reloads the scene and suppresses next autoplay (universal "reset and wait for Play" semantics). `Pause` uses `Time.timeScale = 0f` so all experiment coroutines freeze universally, not just the replay frame-advance.
+- `ReplayUI` works standalone (no `ReplayManager` required): task filter dropdown populates from session frames; auto-loads when the controller has a pre-set CSV path; mouse-wheel scrolling in dropdowns; ensures `InputSystemUIInputModule` on the EventSystem so clicks land.
+
+### Canonical UI widgets
+
+- **`RIPAGauge`** (`Scripts/EyeTracking/Metrics/`). One canonical cognitive-load gauge widget used by `RIPAOverlay` (screen-space corner), `ExperimentUI` (inside the world-space panel), and the new `ReplayController` overlay. Anchor-based vertical fill (no Image sprite required), color tints green → amber → red, polls the monitor each frame so slow value changes still propagate to the visual. Factory method `CreateVerticalStrip(parent, size)` returns the assembled widget plus the gauge component for placement-only callers.
+- **`WorldInstructionPanel`** (`Scripts/EyeTracking/UI/`). One canonical world-space title + body instruction panel used by both N-back and Maze. Uses `VRMaterialProvider` with the Android shader-stripping fallback chain. `PlaceInFrontOf(camT)` for one-time placement at the participant's recorded HMD pose; auto-spawned by controllers if the scene doesn't contain one.
+- `RIPAMonitor` skips duplicate pupil samples during replay so the Savitzky-Golay filter windows operate at the recording's native rate rather than the editor's much higher frame rate.
+
+### MainMenu redesign
+
+- World-space panel with one button per available scene (Calibrator, Sample Experiment, N-back, Maze). Per-button progress fill on gaze dwell. Eye-tracker driven gaze selection with head-direction fallback while the tracker warms up. 3-second dwell time and 6° gaze cone with 6 cm button spacing for unambiguous selection. Drops the legacy two-button cycling pattern.
+
+### Universality & toolbox conventions
+
+- New `docs/TOOLBOX_TUNING.md` documents the `SerializedField` vs `ScriptableObject` vs `const` decision tree for toolbox tunables. Defines how researchers customize defaults without producing repo-dirty diffs (duplicate-and-rename the canonical `.asset`). Audit identifying the 62 fields across 9 components ready for migration to ScriptableObjects in a future release.
+- `IPupilSampleSource` interface + `EyeLeanPupilSampleSource` adapter make `RIPAMonitor` portable: external projects (Pupil Labs, Tobii) implement the interface and assign their adapter on the monitor. Skips disabled `EyeTracker` so replay falls through to `EyeTrackerFactory` correctly.
+
+### Editor wizard hardening
+
+- Scene-setup wizards (`NBackSceneSetup`, `MazeSceneSetup`) re-resolve `ScriptableObject` references after `AssetDatabase.Refresh()`. Without this, `NewScene` and intermediate asset operations could invalidate in-memory SO instances, leading to `fileID: 0` references in the saved scene (silent broken-config bug).
+- `EnvironmentManager` integration left in `Skeleton/` template as the canonical pattern for per-trial environment generation; reference it when building new experiments.
 
 ---
 

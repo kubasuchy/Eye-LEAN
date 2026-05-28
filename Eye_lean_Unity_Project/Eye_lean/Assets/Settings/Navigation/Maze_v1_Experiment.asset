@@ -1,0 +1,84 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4f0b1c54daf3b4579939f444e0eb7e9a, type: 3}
+  m_Name: Maze_v1_Experiment
+  m_EditorClassIdentifier: navlab.experiment-runtime::Navlab.ExperimentRuntime.ExperimentConfig
+  experimentName: Maze_v1
+  version: 1.0.0
+  environment: {fileID: 11400000, guid: 95708f897010e4fbca4081e2dd6c9bf7, type: 2}
+  agents:
+  - name: P_human
+    agentType: 0
+    skin: {fileID: 0}
+    planner: 0
+    spawnRef: S_human
+    goalRef: G_human
+  - name: NPC_1
+    agentType: 1
+    skin: {fileID: 11400000, guid: b6ee76208476e4755b65ca5359f36419, type: 2}
+    planner: 2
+    spawnRef: S_npc
+    goalRef: G_npc
+  trials:
+  - trialId: solo_1
+    activeAgentNames:
+    - P_human
+    goalOverrides: []
+    durationSeconds: 45
+    trialSeed: 1000
+  - trialId: comp_1
+    activeAgentNames:
+    - P_human
+    - NPC_1
+    goalOverrides: []
+    durationSeconds: 45
+    trialSeed: 2000
+  - trialId: solo_2
+    activeAgentNames:
+    - P_human
+    goalOverrides: []
+    durationSeconds: 45
+    trialSeed: 1001
+  - trialId: comp_2
+    activeAgentNames:
+    - P_human
+    - NPC_1
+    goalOverrides: []
+    durationSeconds: 45
+    trialSeed: 2001
+  - trialId: solo_3
+    activeAgentNames:
+    - P_human
+    goalOverrides: []
+    durationSeconds: 45
+    trialSeed: 1002
+  - trialId: comp_3
+    activeAgentNames:
+    - P_human
+    - NPC_1
+    goalOverrides: []
+    durationSeconds: 45
+    trialSeed: 2002
+  - trialId: solo_4
+    activeAgentNames:
+    - P_human
+    goalOverrides: []
+    durationSeconds: 45
+    trialSeed: 1003
+  - trialId: comp_4
+    activeAgentNames:
+    - P_human
+    - NPC_1
+    goalOverrides: []
+    durationSeconds: 45
+    trialSeed: 2003
+  randomSeed: 48879

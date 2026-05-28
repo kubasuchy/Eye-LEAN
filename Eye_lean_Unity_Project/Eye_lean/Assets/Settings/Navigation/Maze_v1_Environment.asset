@@ -1,0 +1,55 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8be89a03171194782bfe6082ef3b55be, type: 3}
+  m_Name: Maze_v1_Environment
+  m_EditorClassIdentifier: navlab.experiment-runtime::Navlab.ExperimentRuntime.EnvironmentConfig
+  boundsMin: {x: -3.5, y: 0}
+  boundsMax: {x: 3.5, y: 7}
+  walls:
+  - startXZ: {x: -3.5, y: 0}
+    endXZ: {x: 3.5, y: 0}
+    thickness: 0.1
+  - startXZ: {x: -3.5, y: 7}
+    endXZ: {x: 3.5, y: 7}
+    thickness: 0.1
+  - startXZ: {x: -3.5, y: 0}
+    endXZ: {x: -3.5, y: 7}
+    thickness: 0.1
+  - startXZ: {x: 3.5, y: 0}
+    endXZ: {x: 3.5, y: 7}
+    thickness: 0.1
+  - startXZ: {x: -1.5, y: 2}
+    endXZ: {x: 1.5, y: 2}
+    thickness: 0.1
+  - startXZ: {x: -1.5, y: 5}
+    endXZ: {x: 1.5, y: 5}
+    thickness: 0.1
+  obstacles:
+  - centerXZ: {x: -0.8, y: 3.5}
+    radius: 0.35
+  - centerXZ: {x: 0.8, y: 3.5}
+    radius: 0.35
+  spawnPoints:
+  - name: S_human
+    positionXZ: {x: -1.5, y: 0.6}
+    headingDeg: 0
+  - name: S_npc
+    positionXZ: {x: 1.5, y: 0.6}
+    headingDeg: 0
+  goals:
+  - name: G_human
+    positionXZ: {x: -1.5, y: 6.4}
+    headingDeg: 180
+  - name: G_npc
+    positionXZ: {x: 1.5, y: 6.4}
+    headingDeg: 180
+  proceduralDelegate: {fileID: 11400000, guid: b8753800382e24004989d8d2e1f8a3e6, type: 2}

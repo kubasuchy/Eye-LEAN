@@ -94,16 +94,11 @@ namespace EyeLean.Experiment
         private GameObject[] phaseDots;
         private SampleExperimentController boundController;
 
-        // Cognitive-load HUD, top-left corner. Auto-binds to RIPAMonitor.Instance
-        // if one is in the scene; hides itself otherwise. Bar fills 0..1 of
-        // (load / displayMax), tinted green->yellow->red. RIPA2 is clipped to
-        // [0, 1.5]; displayMax matches.
+        // Cognitive-load HUD: a canonical RIPAGauge widget placed alongside
+        // the experiment panel. The gauge owns its visuals + RIPAMonitor
+        // binding internally; ExperimentUI is responsible only for placement.
         private GameObject loadHudPanel;
-        private TextMeshProUGUI loadHudText;
-        private RectTransform loadHudBarFill;
-        private Image loadHudBarFillImage;
-        private RIPAMonitor boundLoadMonitor;
-        private const float kLoadHudDisplayMax = 1.5f; // matches RIPA2 clip range
+        private RIPAGauge loadGauge;
 
         private void Awake()
         {
@@ -138,28 +133,16 @@ namespace EyeLean.Experiment
             boundController = FindFirstObjectByType<SampleExperimentController>();
             if (boundController != null) boundController.OnPhaseChanged += HandlePhaseChanged;
 
-            // Auto-bind to RIPAMonitor.Instance if present in scene. The
-            // bootstrap auto-spawns one in every scene unless opted out, so
-            // the HUD lights up by default. When showRipaHud is off the
-            // monitor still runs (LiveLoadIndex still records), but the
-            // panel stays hidden and we skip the subscription.
-            if (showRipaHud)
+            // Push the inspector-selected detector to the monitor so the HUD
+            // reflects the researcher's choice. The monitor still computes
+            // every enabled detector each frame; this only changes which one
+            // drives CurrentLoad / OnLoadChanged. The gauge widget auto-binds
+            // to RIPAMonitor.Instance internally — no manual subscription needed.
+            if (showRipaHud && loadHudPanel != null)
             {
-                boundLoadMonitor = RIPAMonitor.Instance;
-                if (boundLoadMonitor != null && loadHudPanel != null)
-                {
-                    // Push the inspector-selected detector to the monitor so
-                    // the HUD reflects the researcher's choice. The monitor
-                    // still computes every enabled detector each frame; this
-                    // only changes which one drives CurrentLoad / OnLoadChanged.
-                    boundLoadMonitor.DisplayedMethod = hudMethod;
-                    boundLoadMonitor.OnLoadChanged.AddListener(HandleLoadUpdated);
-                    loadHudPanel.SetActive(boundLoadMonitor.Enabled);
-                }
-                else if (loadHudPanel != null)
-                {
-                    loadHudPanel.SetActive(false);
-                }
+                var monitor = RIPAMonitor.Instance;
+                if (monitor != null) monitor.DisplayedMethod = hudMethod;
+                loadHudPanel.SetActive(monitor != null && monitor.Enabled);
             }
             else if (loadHudPanel != null)
             {
@@ -172,30 +155,6 @@ namespace EyeLean.Experiment
         private void OnDestroy()
         {
             if (boundController != null) boundController.OnPhaseChanged -= HandlePhaseChanged;
-            if (boundLoadMonitor != null) boundLoadMonitor.OnLoadChanged.RemoveListener(HandleLoadUpdated);
-        }
-
-        private void HandleLoadUpdated(float load)
-        {
-            if (loadHudPanel == null) return;
-            // Show the panel lazily on first valid reading so we don't flash
-            // an empty bar.
-            if (!loadHudPanel.activeSelf) loadHudPanel.SetActive(true);
-            float t = Mathf.Clamp01(load / kLoadHudDisplayMax);
-            if (loadHudText != null) loadHudText.text = $"Load\n{load:F2}";
-            if (loadHudBarFill != null)
-            {
-                // Vertical strip — fill rises from the bottom.
-                loadHudBarFill.anchorMax = new Vector2(1f, t);
-            }
-            if (loadHudBarFillImage != null)
-            {
-                // green at 0 → yellow at 0.5 → red at 1.0
-                Color c = t < 0.5f
-                    ? Color.Lerp(new Color(0.30f, 0.78f, 0.55f, 1f), new Color(0.95f, 0.85f, 0.30f, 1f), t * 2f)
-                    : Color.Lerp(new Color(0.95f, 0.85f, 0.30f, 1f), new Color(0.92f, 0.40f, 0.30f, 1f), (t - 0.5f) * 2f);
-                loadHudBarFillImage.color = c;
-            }
         }
 
         // Phase order matches SampleExperimentController's runtime sequence.
@@ -256,37 +215,14 @@ namespace EyeLean.Experiment
                 UpdatePanelPosition(false);
             }
 
-            // Lazy-resolve the monitor every LateUpdate AND poll CurrentLoad
-            // so the gauge is always live. boundLoadMonitor captured once at
-            // Start can be null if the bootstrap hadn't spawned the monitor
-            // yet, and OnLoadChanged events are gated by Mathf.Approximately
-            // so a calm session with near-zero deltas wouldn't update the bar.
-            // The OnLoadChanged subscription stays for first-show; this poll
-            // is the always-live update path. Skipped entirely when the HUD
-            // is hidden — RIPAMonitor still computes for the CSV column.
-            if (showRipaHud && loadHudPanel != null)
+            // The RIPAGauge widget self-updates each frame; ExperimentUI's
+            // only remaining responsibility is to reveal the host panel
+            // once the monitor exists and is enabled. RIPAMonitor.Instance
+            // appears lazily (auto-spawned by RIPAMonitorBootstrap).
+            if (showRipaHud && loadHudPanel != null && !loadHudPanel.activeSelf)
             {
-                if (boundLoadMonitor == null || !boundLoadMonitor)
-                {
-                    var m = RIPAMonitor.Instance;
-                    if (m != null)
-                    {
-                        boundLoadMonitor = m;
-                        m.DisplayedMethod = hudMethod;
-                        m.OnLoadChanged.AddListener(HandleLoadUpdated);
-                    }
-                }
-                if (boundLoadMonitor != null && boundLoadMonitor)
-                {
-                    if (boundLoadMonitor.IsValid && !loadHudPanel.activeSelf)
-                    {
-                        loadHudPanel.SetActive(true);
-                    }
-                    if (loadHudPanel.activeSelf)
-                    {
-                        HandleLoadUpdated(boundLoadMonitor.CurrentLoad);
-                    }
-                }
+                var m = RIPAMonitor.Instance;
+                if (m != null && m.Enabled) loadHudPanel.SetActive(true);
             }
         }
 
@@ -675,50 +611,23 @@ namespace EyeLean.Experiment
                 Debug.Log("[ExperimentUI] Cognitive-load HUD strip suppressed (showRipaHud=false). RIPAMonitor still records LiveLoadIndex.");
                 return;
             }
+            // Canonical gauge widget via the RIPAGauge factory. ExperimentUI
+            // only chooses placement (left side of the main panel); the
+            // gauge owns its visuals and RIPAMonitor binding.
             float loadHudWidth = 110f;
             float loadHudHeight = panelHeightSize * pixelsPerMeter;
-            loadHudPanel = CreatePanel(canvasObj.transform, "LoadHudPanel",
-                new Vector2(-(panelWidth * pixelsPerMeter * 0.5f + loadHudWidth * 0.5f + 20f), 0f),
-                new Vector2(loadHudWidth, loadHudHeight));
-            var loadBg = loadHudPanel.GetComponent<Image>();
-            if (loadBg != null) loadBg.color = new Color(0.05f, 0.05f, 0.13f, 0.92f);
+            loadHudPanel = new GameObject("LoadHudPanel");
+            loadHudPanel.transform.SetParent(canvasObj.transform, false);
+            var hostRect = loadHudPanel.AddComponent<RectTransform>();
+            hostRect.anchorMin = hostRect.anchorMax = new Vector2(0.5f, 0.5f);
+            hostRect.pivot = new Vector2(0.5f, 0.5f);
+            hostRect.anchoredPosition = new Vector2(-(panelWidth * pixelsPerMeter * 0.5f + loadHudWidth * 0.5f + 20f), 0f);
+            hostRect.sizeDelta = new Vector2(loadHudWidth, loadHudHeight);
 
-            // Two-line "Load / 0.42" readout above the bar so the strip stays
-            // narrow.
-            float labelHeight = 90f;
-            loadHudText = CreateText(loadHudPanel.transform, "LoadHudText",
-                new Vector2(0, loadHudHeight * 0.5f - labelHeight * 0.5f - 10f),
-                new Vector2(loadHudWidth - 12f, labelHeight), fontSize - 32);
-            loadHudText.alignment = TextAlignmentOptions.Center;
-            loadHudText.text = "Load\n--";
-
-            // Vertical bar background — narrow column filling the rest of
-            // the strip below the label.
-            float barWidth = 28f;
-            float barTopPadding = labelHeight + 24f;
-            float barBottomPadding = 16f;
-            float barHeight = loadHudHeight - barTopPadding - barBottomPadding;
-            float barCenterY = (barBottomPadding - barTopPadding) * 0.5f;
-            var barBgObj = new GameObject("LoadHudBarBg");
-            barBgObj.transform.SetParent(loadHudPanel.transform, false);
-            var barBgRect = barBgObj.AddComponent<RectTransform>();
-            barBgRect.anchoredPosition = new Vector2(0, barCenterY);
-            barBgRect.sizeDelta = new Vector2(barWidth, barHeight);
-            var barBgImg = barBgObj.AddComponent<Image>();
-            barBgImg.color = new Color(0.18f, 0.18f, 0.22f, 1f);
-            barBgImg.raycastTarget = false;
-
-            // Bar fill (anchored bottom, animated via anchorMax.y).
-            var barFillObj = new GameObject("LoadHudBarFill");
-            barFillObj.transform.SetParent(barBgObj.transform, false);
-            loadHudBarFill = barFillObj.AddComponent<RectTransform>();
-            loadHudBarFill.anchorMin = new Vector2(0f, 0f);
-            loadHudBarFill.anchorMax = new Vector2(1f, 0f);
-            loadHudBarFill.offsetMin = Vector2.zero;
-            loadHudBarFill.offsetMax = Vector2.zero;
-            loadHudBarFillImage = barFillObj.AddComponent<Image>();
-            loadHudBarFillImage.color = new Color(0.30f, 0.78f, 0.55f, 1f);
-            loadHudBarFillImage.raycastTarget = false;
+            var (gauge, widget) = RIPAGauge.CreateVerticalStrip(loadHudPanel.transform, new Vector2(loadHudWidth, loadHudHeight));
+            widget.anchorMin = widget.anchorMax = new Vector2(0.5f, 0.5f);
+            widget.anchoredPosition = Vector2.zero;
+            loadGauge = gauge;
             loadHudPanel.SetActive(false);
 
             Debug.Log($"[ExperimentUI] UI created: panelWidth={panelWidth}m, panelHeight={panelHeightSize}m, fontSize={fontSize}");

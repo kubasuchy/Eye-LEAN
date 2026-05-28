@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 15a58bf83c2b8419d9aa62ce5559aad4, type: 3}
+  m_Name: NBackConfig_PaperDefault
+  m_EditorClassIdentifier: EyeLean.NBackWorkingMemory::EyeLean.NBack.NBackConfig
+  sourceCitation: "Jayawardena, Jayawardana & Gwizdka 2025, J. Eye Movement Research
+    18(6):70, \xA75.1. Passive baseline, target rate, and response window are Eye_lean
+    additions."
+  blocks: 0200000003000000040000000500000006000000
+  randomizeBlockOrder: 1
+  blockOrderSeed: 17
+  trialsPerBlock: 45
+  trialsPerBlockN3: 30
+  targetRatio: 0.3
+  zeroBackTargetRatio: 0.3
+  stimulusDurationSec: 0.5
+  isiSec: 1.5
+  responseWindowSec: 2
+  stimulusAlphabet:
+  - C
+  - F
+  - H
+  - S
+  zeroBackTargetLetter: C
+  passiveBaselineTrials: 45
+  instructionDisplaySec: 6
+  interBlockRestSec: 8
+  stimulusSeed: 243146401
