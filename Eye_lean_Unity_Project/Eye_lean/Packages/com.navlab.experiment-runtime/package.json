@@ -1,0 +1,11 @@
+{
+  "name": "com.navlab.experiment-runtime",
+  "version": "0.1.0",
+  "displayName": "Navlab Experiment Runtime",
+  "description": "ScriptableObject-driven experiment authoring + competitive NPCs for navlab.",
+  "unity": "2021.3",
+  "dependencies": {
+    "com.navlab.planners": "0.1.0",
+    "com.unity.nuget.newtonsoft-json": "3.2.1"
+  }
+}

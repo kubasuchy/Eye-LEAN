@@ -1,0 +1,11 @@
+{
+  "name": "navlab.experiment-runtime",
+  "rootNamespace": "Navlab.ExperimentRuntime",
+  "references": ["navlab.planners"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "autoReferenced": true,
+  "noEngineReferences": false
+}

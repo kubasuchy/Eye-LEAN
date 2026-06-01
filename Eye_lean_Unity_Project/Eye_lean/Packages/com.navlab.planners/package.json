@@ -1,0 +1,10 @@
+{
+  "name": "com.navlab.planners",
+  "version": "0.1.0",
+  "displayName": "Navlab Planners",
+  "description": "Shared path planners (A*, D* Lite) for the navlab platform.",
+  "unity": "2021.3",
+  "dependencies": {
+    "com.unity.nuget.newtonsoft-json": "3.2.1"
+  }
+}
