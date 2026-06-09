@@ -372,6 +372,10 @@ namespace EyeLean.SceneState
                     Sanitize(type), ",",
                     Sanitize(objectId ?? string.Empty), ",",
                     Sanitize(detail ?? string.Empty)));
+                // Events are sparse (phase transitions, gate events) but high-value, and unlike the
+                // per-frame recorders this one has no periodic flush — so flush each row to survive a
+                // hard crash that never fires OnApplicationPause/Quit.
+                writer.Flush();
                 if (debugLogEvents)
                 {
                     Debug.Log($"[SceneEventRecorder] {type} | id='{objectId}' | detail='{detail}'");

@@ -129,7 +129,11 @@ namespace EyeLean.Replay
         {
             if (cameraTransform == null)
             {
+                // Camera.main is null when the rig camera is tagged Player (not MainCamera), as in the
+                // experiment scene — fall through to the Player-tagged child camera, then any camera.
                 var cam = Camera.main;
+                if (cam == null) { var p = GameObject.FindWithTag("Player"); if (p) cam = p.GetComponentInChildren<Camera>(); }
+                if (cam == null) cam = FindFirstObjectByType<Camera>();
                 if (cam != null) cameraTransform = cam.transform;
             }
         }

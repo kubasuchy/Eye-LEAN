@@ -92,13 +92,6 @@ namespace EyeLean.Skeleton
 
         // ----- Public API -----
 
-        public void InitializePool(int poolSize = 20)
-        {
-            poolSizePerGender = poolSize;
-            InitializeAgentPrefabs();
-            InitializePools();
-        }
-
         public void StartAgentSystem()
         {
             isAgentSystemActive = true;

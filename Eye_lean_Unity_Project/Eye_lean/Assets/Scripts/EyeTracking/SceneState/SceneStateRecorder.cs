@@ -406,8 +406,23 @@ namespace EyeLean.SceneState
         {
             if (paused)
             {
+                FlushPendingRows();
                 csvWriter?.Flush();
             }
+        }
+
+        // Drain rows buffered during the coordinate-origin grace window. pendingRows is only non-empty
+        // while the header hasn't been written yet (still inside the grace window); a quit/pause here
+        // would otherwise close the sidecar with no header and every buffered row lost — an empty sidecar
+        // and silent data loss for short/aborted sessions (on Android, where OnApplicationQuit may never
+        // fire, pause is the real teardown). WriteHeaderInternal writes the header — CoordinateOriginSet
+        // reflecting whether the origin landed — and re-normalizes + drains the queue.
+        private void FlushPendingRows()
+        {
+            if (csvWriter == null || headerWritten || pendingRows.Count == 0) return;
+            bool originSet = hmdCollector != null && hmdCollector.HasTrialStartPosition;
+            Vector3 origin = originSet ? hmdCollector.CurrentTrialStartPosition : Vector3.zero;
+            WriteHeaderInternal(originSet, origin);
         }
 
         private void CloseSidecar()
@@ -416,6 +431,7 @@ namespace EyeLean.SceneState
             {
                 if (sidecarWriter != null)
                 {
+                    FlushPendingRows();
                     csvWriter?.Flush();
                     sidecarWriter.Close();
                     sidecarWriter.Dispose();

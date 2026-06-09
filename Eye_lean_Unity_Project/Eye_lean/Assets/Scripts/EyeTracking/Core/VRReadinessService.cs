@@ -95,7 +95,7 @@ namespace EyeTracking.Core
         private void Update()
         {
             if (_isTracking) return;
-            if (_cachedCamera == null) _cachedCamera = Camera.main?.transform;
+            if (_cachedCamera == null) _cachedCamera = ResolveHeadCamera();
             if (_cachedCamera == null) return;
             Vector3 p = _cachedCamera.position;
             if (p.y > MinCameraHeightMeters && p.magnitude > MinCameraOriginEpsilon)
@@ -105,6 +105,18 @@ namespace EyeTracking.Core
                 try { OnReady?.Invoke(); }
                 catch (System.Exception e) { Debug.LogException(e); }
             }
+        }
+
+        // Camera.main is null in scenes where the rig camera is tagged Player (not MainCamera) — e.g. the
+        // experiment scene, where StartingPlatform claims the Player tag on the head. Without this fallback
+        // _isTracking would never flip and OnReady would never fire in those scenes. Falls through:
+        // Camera.main → Player-tagged child camera → any camera (matches SpawnPointAligner/EyeTracker).
+        private static Transform ResolveHeadCamera()
+        {
+            var cam = Camera.main;
+            if (cam == null) { var p = GameObject.FindWithTag("Player"); if (p) cam = p.GetComponentInChildren<Camera>(); }
+            if (cam == null) cam = FindFirstObjectByType<Camera>();
+            return cam != null ? cam.transform : null;
         }
 
         public void OnSceneWillUnload(Scene from)

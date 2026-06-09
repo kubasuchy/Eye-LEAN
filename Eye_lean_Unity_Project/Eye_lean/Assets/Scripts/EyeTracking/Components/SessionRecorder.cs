@@ -639,11 +639,36 @@ namespace EyeTracking.Components
 
         // --- Lifecycle hooks for crash protection ---
 
+        // Drain any rows buffered during the coordinate-origin grace window. pendingSamples is only
+        // non-empty while the header hasn't been written yet (still inside the grace window); a quit or
+        // pause in that window would otherwise close the writer with the header never written and every
+        // buffered row discarded — an empty CSV and silent data loss for short/aborted sessions. Mirrors
+        // the grace-expiry branch of ExportDataToCSV (header + re-normalize + drain).
+        private void FlushPendingSamples()
+        {
+            if (csvWriter == null || pendingSamples.Count == 0) return;
+            try
+            {
+                if (!csvHeaderWritten && (hmdCollector == null || !hmdCollector.HasTrialStartPosition))
+                    Debug.LogWarning($"[SessionRecorder] Session ended inside the coordinate-origin grace window with no SetCoordinateOrigin call; {pendingSamples.Count} buffered rows written as world-space (CoordinateOriginSet:False).");
+                WriteCSVHeaderIfNeeded();
+                bool originLanded = hmdCollector != null && hmdCollector.HasTrialStartPosition;
+                Vector3 origin = originLanded ? hmdCollector.CurrentTrialStartPosition : Vector3.zero;
+                while (pendingSamples.Count > 0)
+                {
+                    ResearchDataSample buffered = pendingSamples.Dequeue();
+                    if (originLanded) RenormalizePositionsForFlush(ref buffered, origin);
+                    csvWriter.WriteLine(FormatDataSampleAsCSV(buffered));
+                }
+            }
+            catch (System.Exception e) { Debug.LogError($"[SessionRecorder] Error draining buffered samples on teardown: {e.Message}"); }
+        }
+
         private void OnApplicationQuit()
         {
             if (csvWriter != null)
             {
-                try { csvWriter.Flush(); csvWriter.Close(); csvWriter.Dispose(); Debug.Log($"[SessionRecorder] CSV file saved: {csvFilePath}"); }
+                try { FlushPendingSamples(); csvWriter.Flush(); csvWriter.Close(); csvWriter.Dispose(); Debug.Log($"[SessionRecorder] CSV file saved: {csvFilePath}"); }
                 catch (System.Exception e) { Debug.LogError($"[SessionRecorder] Error closing CSV: {e.Message}"); }
             }
         }
@@ -655,7 +680,7 @@ namespace EyeTracking.Components
             // data buffered since last periodic flush survives. Don't close the writer;
             // the app may resume.
             if (!pauseStatus || csvWriter == null) return;
-            try { csvWriter.Flush(); }
+            try { FlushPendingSamples(); csvWriter.Flush(); }
             catch (System.Exception e) { Debug.LogError($"[SessionRecorder] Error flushing on pause: {e.Message}"); }
         }
 

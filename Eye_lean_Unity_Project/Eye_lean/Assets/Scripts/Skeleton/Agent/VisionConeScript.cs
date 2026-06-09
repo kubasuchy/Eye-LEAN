@@ -274,9 +274,24 @@ namespace EyeLean.Skeleton
 
         #region Participant Detection
 
+        // Camera.main is null in this project (rig camera tagged Player, not MainCamera), so resolve the
+        // participant head via the project's standard fallback and cache it — otherwise the head-identity
+        // and head-root checks below would be permanently dead and detection would lean only on tag/name.
+        private Transform _participantHead;
+        private Transform ParticipantHead()
+        {
+            if (_participantHead != null && _participantHead) return _participantHead;
+            var cam = Camera.main;
+            if (cam == null) { var p = GameObject.FindWithTag("Player"); if (p) cam = p.GetComponentInChildren<Camera>(); }
+            if (cam == null) cam = FindFirstObjectByType<Camera>();
+            _participantHead = cam != null ? cam.transform : null;
+            return _participantHead;
+        }
+
         bool IsParticipant(Collider collider)
         {
-            if (collider.gameObject == Camera.main?.gameObject)
+            Transform head = ParticipantHead();
+            if (head != null && (collider.gameObject == head.gameObject || collider.transform.IsChildOf(head.root)))
             {
                 return true;
             }
@@ -287,11 +302,6 @@ namespace EyeLean.Skeleton
             }
 
             if (collider.gameObject.name.Contains("XR") || collider.gameObject.name.Contains("Camera"))
-            {
-                return true;
-            }
-
-            if (Camera.main != null && collider.transform.IsChildOf(Camera.main.transform.root))
             {
                 return true;
             }

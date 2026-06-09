@@ -2,6 +2,7 @@
 using UnityEngine;
 using System;
 using System.Collections;
+using System.Collections.Generic;
 
 /// <summary>
 /// Walking agent: animation-driven motion with VisionCone collision avoidance,
@@ -31,6 +32,11 @@ namespace EyeLean.Skeleton
 
         private Rigidbody rb;
         private Animator animator;
+
+        // Cached animator parameter names, used to guard every Set/Get below: the walk/idle controllers
+        // don't all define the same params (the Female controller has no IsWalking; the fallback controller
+        // has no WalkStyleIndex), and touching a missing param logs a warning EVERY frame.
+        private HashSet<string> animParamNames;
 
         private bool hasStarted = false;
         private bool shouldMove = true;
@@ -118,17 +124,38 @@ namespace EyeLean.Skeleton
             if (EnableDebugLogging) Debug.Log($"[AGENT_INIT] {gameObject.name} initialization complete");
         }
 
+        // --- Safe animator parameter access ---
+        // Cache the controller's parameter names once and guard every Set/Get so touching a parameter the
+        // assigned controller doesn't define is a silent no-op instead of a per-frame Unity warning. Built
+        // lazily and only once the animator is initialized — reading animator.parameters before that returns
+        // an empty list, which would otherwise cache "no params" and suppress ALL animation.
+        private bool HasAnimParam(string name)
+        {
+            if (animator == null || animator.runtimeAnimatorController == null) return false;
+            if (animParamNames == null)
+            {
+                if (!animator.isInitialized) return false; // params not ready yet; don't cache an empty set
+                animParamNames = new HashSet<string>();
+                foreach (var p in animator.parameters) animParamNames.Add(p.name);
+            }
+            return animParamNames.Contains(name);
+        }
+        private void SetBoolSafe(string name, bool value) { if (HasAnimParam(name)) animator.SetBool(name, value); }
+        private void SetIntSafe(string name, int value) { if (HasAnimParam(name)) animator.SetInteger(name, value); }
+        private void SetTriggerSafe(string name) { if (HasAnimParam(name)) animator.SetTrigger(name); }
+        private bool GetBoolSafe(string name) => HasAnimParam(name) && animator.GetBool(name);
+
         // Force walking state from both Start and OnEnable so pooled agents reuse cleanly
         void ForceImmediateWalkingState()
         {
             if (restrictToWalkingState && animator != null)
             {
-                animator.SetBool("IsWalking", true);
-                animator.SetInteger("WalkStyleIndex", walkStyleIndex);
+                SetBoolSafe("IsWalking", true);
+                SetIntSafe("WalkStyleIndex", walkStyleIndex);
             }
             else if (shouldMove && targetSpeed > 0.1f && animator != null)
             {
-                animator.SetBool("IsWalking", true);
+                SetBoolSafe("IsWalking", true);
             }
         }
 
@@ -164,7 +191,7 @@ namespace EyeLean.Skeleton
 
             if (restrictToWalking && animator != null && hasStarted)
             {
-                animator.SetBool("IsWalking", true);
+                SetBoolSafe("IsWalking", true);
             }
         }
 
@@ -177,7 +204,7 @@ namespace EyeLean.Skeleton
 
             if (animator != null)
             {
-                animator.SetInteger("WalkStyleIndex", walkStyleIndex);
+                SetIntSafe("WalkStyleIndex", walkStyleIndex);
                 if (EnableDebugLogging) Debug.Log($"[ANIM DEBUG] INIT {gameObject.name}: StyleIndex={walkStyleIndex}, TargetSpeed={targetWalkSpeed:F3}m/s");
             }
         }
@@ -187,7 +214,7 @@ namespace EyeLean.Skeleton
         private void ApplyAnimationSpeedMultiplier()
         {
             if (hasInitializedAnimationSpeed || animator == null) return;
-            if (!animator.GetBool("IsWalking")) return;
+            if (!GetBoolSafe("IsWalking")) return;
 
             AnimatorClipInfo[] clipInfos = animator.GetCurrentAnimatorClipInfo(0);
             if (clipInfos.Length > 0)
@@ -265,7 +292,7 @@ namespace EyeLean.Skeleton
             // enable so the animator has time to settle into the walking sub-state
             if (restrictToWalkingState && framesSinceEnable < FORCE_WALK_FRAMES && animator != null)
             {
-                animator.SetBool("IsWalking", true);
+                SetBoolSafe("IsWalking", true);
                 framesSinceEnable++;
             }
         }
@@ -394,12 +421,12 @@ namespace EyeLean.Skeleton
             {
                 if (restrictToWalkingState)
                 {
-                    animator.SetBool("IsWalking", true);
+                    SetBoolSafe("IsWalking", true);
                     if (EnableDebugLogging) Debug.Log($"[AgentBehavior] {gameObject.name} animation: IsWalking = true (restricted mode)");
                 }
                 else
                 {
-                    animator.SetBool("IsWalking", isMoving);
+                    SetBoolSafe("IsWalking", isMoving);
                     if (EnableDebugLogging) Debug.Log($"[AgentBehavior] {gameObject.name} animation: IsWalking = {isMoving}");
                 }
             }
@@ -412,7 +439,7 @@ namespace EyeLean.Skeleton
             if (restrictToWalkingState)
             {
                 // Walking-only mode: keep walking but modulate speed for avoidance
-                animator.SetBool("IsWalking", true);
+                SetBoolSafe("IsWalking", true);
 
                 if (hasInitializedAnimationSpeed && visionConeTriggered)
                 {
@@ -444,7 +471,7 @@ namespace EyeLean.Skeleton
                     wasWalkingLastFrame = shouldWalk;
                 }
 
-                animator.SetBool("IsWalking", shouldWalk);
+                SetBoolSafe("IsWalking", shouldWalk);
             }
         }
 
@@ -515,9 +542,9 @@ namespace EyeLean.Skeleton
 
             if (EnableDebugLogging) Debug.Log($"[AgentBehavior] {gameObject.name} starting REACTION animation (index: {reactionIndex})");
 
-            animator.SetBool("IsWalking", false);
-            animator.SetInteger("ReactionIndex", reactionIndex);
-            animator.SetTrigger("IsReacting"); // Trigger auto-resets after firing
+            SetBoolSafe("IsWalking", false);
+            SetIntSafe("ReactionIndex", reactionIndex);
+            SetTriggerSafe("IsReacting"); // Trigger auto-resets after firing
 
             animator.speed = 1.0f;
 
@@ -596,7 +623,7 @@ namespace EyeLean.Skeleton
             {
                 if (restrictToWalkingState)
                 {
-                    animator.SetBool("IsWalking", true);
+                    SetBoolSafe("IsWalking", true);
                 }
 
                 if (hasInitializedAnimationSpeed && clipInherentSpeed > 0.1f)

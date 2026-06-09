@@ -301,12 +301,23 @@ namespace EyeLean.Replay
         // state if this controller is killed mid-play.
         private bool cameraDetachedForReplay;
 
+        // Camera.main is null when the rig camera is tagged Player (not MainCamera). Fall through to the
+        // Player-tagged child camera, then any camera, so first-person replay can still resolve a head
+        // when no explicit replayCameraTransform was assigned in the inspector.
+        private static Transform ResolveReplayHead()
+        {
+            var cam = Camera.main;
+            if (cam == null) { var p = GameObject.FindWithTag("Player"); if (p) cam = p.GetComponentInChildren<Camera>(); }
+            if (cam == null) cam = FindFirstObjectByType<Camera>();
+            return cam != null ? cam.transform : null;
+        }
+
         private void ResolveReplayCameraOnce()
         {
             if (cachedReplayCamera != null && cachedReplayCamera) return;
             cachedReplayCamera = replayCameraTransform != null && replayCameraTransform
                 ? replayCameraTransform
-                : (Camera.main != null ? Camera.main.transform : null);
+                : ResolveReplayHead();
             if (cachedReplayCamera != null && !cameraOriginalCaptured)
             {
                 cachedCameraOriginalPosition = cachedReplayCamera.position;

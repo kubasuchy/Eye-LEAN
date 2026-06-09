@@ -106,6 +106,20 @@ namespace EyeLean.Skeleton
             }
         }
 
+        private void OnDestroy()
+        {
+            // Mirror the subscriptions in InitializeTrialManager. Without this, a scene reload or manager
+            // teardown leaves dangling delegates on a surviving TrialManager (leak / double-fire on the
+            // next run). Removing an unsubscribed delegate is a harmless no-op, so no flag to track.
+            if (trialManager != null)
+            {
+                trialManager.OnPhaseChanged -= OnTrialPhaseChanged;
+                trialManager.OnTrialStarted -= OnTrialStarted;
+                trialManager.OnTrialCompleted -= OnTrialCompleted;
+                trialManager.OnAllTrialsCompleted -= OnAllTrialsCompleted;
+            }
+        }
+
         public void StartSession()
         {
             if (currentState != ExperimentState.Ready)

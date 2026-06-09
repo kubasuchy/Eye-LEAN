@@ -180,21 +180,6 @@ namespace EyeLean.Skeleton
                 UnityEngine.Debug.Log("[StartingPlatform] Platform positioned and initialized at participant location");
         }
 
-        IEnumerator DelayedPlatformPositioning()
-        {
-            if (showDebugLogs)
-                UnityEngine.Debug.Log("[StartingPlatform] Waiting 0.5 seconds for VR system to initialize before positioning platform...");
-
-            yield return new WaitForSeconds(0.5f);
-
-            PositionPlatformAtParticipant();
-
-            SetPlatformVisible(true);
-
-            if (showDebugLogs)
-                UnityEngine.Debug.Log("[StartingPlatform] Delayed positioning completed and platform is now visible");
-        }
-
         /// <summary>
         /// Drive platform visibility from trial phase. Visual is shown only in ITI; the
         /// collider stays active during WaitingOnPlatform/FixationCross to detect

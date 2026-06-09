@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using EyeTracking.Components;
 using EyeLean.SceneState;
 
@@ -22,7 +23,7 @@ namespace EyeLean.Skeleton.Examples
         [SerializeField] private float stimulusMinDistance = 1.5f;
         [SerializeField] private float stimulusMaxDistance = 3.5f;
         [SerializeField] private Color stimulusColor = new Color(0.95f, 0.30f, 0.30f);
-        [SerializeField] private KeyCode editorResponseKey = KeyCode.Space;
+        [SerializeField] private Key editorResponseKey = Key.Space; // New Input System key (project is new-Input-only)
 
         private TrialManager trialManager;
         private SessionRecorder sessionRecorder;
@@ -61,8 +62,9 @@ namespace EyeLean.Skeleton.Examples
         private void Update()
         {
             if (!isPhaseActive || responseReceived) return;
-            // Editor-side response key. Hook XRI's primary-button action for headset.
-            if (Input.GetKeyDown(editorResponseKey)) RecordResponse();
+            // Editor-side response key (New Input System). Hook XRI's primary-button action for headset.
+            var kb = Keyboard.current;
+            if (kb != null && kb[editorResponseKey].wasPressedThisFrame) RecordResponse();
         }
 
         public void OnPhaseStart()
