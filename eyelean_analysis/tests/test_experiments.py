@@ -161,6 +161,32 @@ def test_to_dataframe_shape(synthetic_sample_experiment):
         assert col in df.columns
 
 
+def test_jittery_phase_lhipa_uses_true_duration(tmp_path):
+    """A phase with jittery frame timing (median ~90 Hz makes n/rate < 5 s,
+    while the true elapsed span is ~5.9 s) must have its LHIPA computed from
+    the true timestamp span, not dropped as 'Duration too short'. Guards the
+    default report path against the 1/median-rate duration under-estimate."""
+    phase = SAMPLE_EXPERIMENT_PHASES[0]
+    dt = np.concatenate([np.full(400, 1.0 / 90.0), np.full(30, 0.05)])
+    ts = np.concatenate([[0.0], np.cumsum(dt)])  # 431 samples, ~5.94 s elapsed
+    rng = np.random.default_rng(3)
+    rows = [{
+        "UnityTimestamp": float(tv),
+        "CurrentPhase": phase,
+        "SubTask": "default",
+        "CombinedDir_X": float(rng.normal(0, 0.005)),
+        "CombinedDir_Y": float(rng.normal(0, 0.005)),
+        "CombinedDir_Z": 1.0,
+        "LeftPupilDiameter": float(4.0 + 0.2 * np.sin(2 * np.pi * 0.8 * tv) + rng.normal(0, 0.03)),
+    } for tv in ts]
+    p = tmp_path / "jitter_phase.csv"
+    pd.DataFrame(rows).to_csv(p, index=False)
+
+    report = analyze_sample_experiment(p)
+    r = report.phases[phase]
+    assert r.lhipa is not None, f"LHIPA dropped as invalid: {r.missing_metrics}"
+
+
 def test_missing_phase_column_raises(tmp_path):
     """A non-SampleExperiment CSV should fail with a clear message rather
     than producing an empty report or a deep AttributeError."""

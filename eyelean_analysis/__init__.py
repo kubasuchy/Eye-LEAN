@@ -20,7 +20,8 @@ Usage:
 
     # Get pupil data and analyze
     pupil = data.get_pupil_data()
-    lhipa = calculate_lhipa(pupil['left_pupil'].values, data.get_sample_rate())
+    lhipa = calculate_lhipa(pupil['left_pupil'].values, data.get_sample_rate(),
+                            timestamps=data.get_timestamps())
 
     # Detect fixations and saccades
     gaze = data.compute_gaze_points(distance=1.0)
@@ -32,7 +33,7 @@ References:
     - Salvucci & Goldberg (2000). "Identifying fixations and saccades". ETRA '00.
 """
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 __author__ = "Eye_lean Project"
 
 # Data loading

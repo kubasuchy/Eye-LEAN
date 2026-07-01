@@ -101,6 +101,9 @@ class LHIPAResult:
         n_samples, sample_rate: input shape.
         is_valid:  True if the algorithm produced a finite result.
         error_message: human-readable reason on failure.
+        duration_s: Signal duration in seconds actually used for the gate
+                   and the per-second normalisation (true elapsed span when
+                   timestamps were supplied, else n / sample_rate).
     """
     lhipa: float
     low_ipa: float
@@ -111,6 +114,7 @@ class LHIPAResult:
     sample_rate: float
     is_valid: bool
     error_message: Optional[str] = None
+    duration_s: float = 0.0
 
 
 class LHIPACalculator:
@@ -167,7 +171,14 @@ class LHIPACalculator:
         Args:
             pupil_data: Array of pupil diameter values (mm).
             sample_rate: Sampling rate in Hz.
-            timestamps: Optional timestamps (used to verify sample rate).
+            timestamps: Optional per-sample timestamps in seconds. When given
+                (and length-matched to pupil_data), the true elapsed span
+                ``timestamps[-1] - timestamps[0]`` is used as the signal
+                duration for both the minimum-duration gate and the
+                per-second LHIPA normalisation. This is robust to frame
+                jitter, which makes a ``1/median(Δt)`` rate over-estimate the
+                true rate and so under-compute ``n / sample_rate``. Falls back
+                to ``n / sample_rate`` when timestamps are absent or mismatched.
 
         Returns:
             LHIPAResult with LHIPA value and diagnostics.
@@ -205,8 +216,12 @@ class LHIPACalculator:
         # Interpolate NaN values for wavelet analysis
         pupil_clean = self._interpolate_nans(pupil_data)
 
-        # Check minimum duration
-        duration = len(pupil_clean) / sample_rate
+        # Signal duration for the gate + the per-second normalisation. Prefer
+        # the TRUE elapsed span from timestamps: deriving duration from a
+        # 1/median(Δt) rate over-estimates the true rate under frame jitter (a
+        # few long frames barely move the median), so len/rate under-computes
+        # duration and spuriously fails this gate.
+        duration = self._resolve_duration(len(pupil_clean), sample_rate, timestamps)
         if duration < self.min_duration:
             return LHIPAResult(
                 lhipa=np.nan,
@@ -218,11 +233,12 @@ class LHIPACalculator:
                 sample_rate=sample_rate,
                 is_valid=False,
                 error_message=f"Duration too short ({duration:.2f}s < {self.min_duration}s)",
+                duration_s=duration,
             )
 
         # Canonical LHIPA per Duchowski et al. 2020 Listing 1.
         try:
-            lhipa, low_ipa, high_ipa = self._compute_lhipa(pupil_clean, sample_rate)
+            lhipa, low_ipa, high_ipa = self._compute_lhipa(pupil_clean, duration)
         except Exception as e:
             return LHIPAResult(
                 lhipa=np.nan,
@@ -234,6 +250,7 @@ class LHIPACalculator:
                 sample_rate=sample_rate,
                 is_valid=False,
                 error_message=f"Wavelet decomposition failed: {str(e)}",
+                duration_s=duration,
             )
 
         return LHIPAResult(
@@ -245,9 +262,31 @@ class LHIPACalculator:
             n_samples=len(pupil_data),
             sample_rate=sample_rate,
             is_valid=True,
+            duration_s=duration,
         )
 
-    def _compute_lhipa(self, data: np.ndarray, sample_rate: float) -> Tuple[float, float, float]:
+    @staticmethod
+    def _resolve_duration(n_samples: int,
+                          sample_rate: float,
+                          timestamps: Optional[np.ndarray]) -> float:
+        """True signal duration in seconds.
+
+        Prefers the elapsed span of ``timestamps`` (``ts[-1] - ts[0]``), which
+        is exact and robust to frame jitter. Falls back to ``n / sample_rate``
+        when timestamps are absent, the wrong length, or degenerate
+        (non-finite or non-positive span).
+        """
+        if timestamps is not None:
+            ts = np.asarray(timestamps, dtype=np.float64)
+            if ts.size == n_samples and ts.size >= 2:
+                span = float(ts[-1] - ts[0])
+                if np.isfinite(span) and span > 0.0:
+                    return span
+        if sample_rate and sample_rate > 0.0:
+            return float(n_samples) / float(sample_rate)
+        return 0.0
+
+    def _compute_lhipa(self, data: np.ndarray, duration_s: float) -> Tuple[float, float, float]:
         """Canonical LHIPA per Duchowski et al. 2020, Listing 1.
 
         Returns:
@@ -315,7 +354,8 @@ class LHIPACalculator:
             return float('nan'), float('nan'), float('nan')
 
         # Modulus maxima + Donoho universal threshold + count per second.
-        duration_s = len(data) / sample_rate
+        # duration_s is the true signal duration resolved by calculate()
+        # (elapsed span from timestamps when available, else len/sample_rate).
         if duration_s <= 0:
             return float('nan'), float('nan'), float('nan')
 
@@ -381,7 +421,8 @@ class LHIPACalculator:
 
 def calculate_lhipa(pupil_data: np.ndarray,
                     sample_rate: float,
-                    wavelet: str = 'sym16') -> LHIPAResult:
+                    wavelet: str = 'sym16',
+                    timestamps: Optional[np.ndarray] = None) -> LHIPAResult:
     """
     Convenience function to calculate LHIPA.
 
@@ -389,6 +430,10 @@ def calculate_lhipa(pupil_data: np.ndarray,
         pupil_data: Array of pupil diameter values.
         sample_rate: Sampling rate in Hz.
         wavelet: Wavelet type for decomposition.
+        timestamps: Optional per-sample timestamps in seconds. When supplied,
+            the true elapsed span is used as the signal duration instead of
+            ``n / sample_rate`` (robust to frame jitter). Pass
+            ``data.get_timestamps()`` alongside ``data.get_sample_rate()``.
 
     Returns:
         LHIPAResult with LHIPA value and diagnostics.
@@ -399,7 +444,7 @@ def calculate_lhipa(pupil_data: np.ndarray,
         ...     print(f"Cognitive load index: {result.lhipa:.3f}")
     """
     calculator = LHIPACalculator(wavelet=wavelet)
-    return calculator.calculate(pupil_data, sample_rate)
+    return calculator.calculate(pupil_data, sample_rate, timestamps=timestamps)
 
 
 def lhipa_timeseries(pupil_data: np.ndarray,

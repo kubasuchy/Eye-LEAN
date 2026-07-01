@@ -393,7 +393,13 @@ class BatchProcessor:
             else:
                 pupil = right
 
-            result = calculate_lhipa(pupil, sample_rate)
+            # True elapsed span for the LHIPA duration (robust to frame
+            # jitter); falls back to n/sample_rate if timestamps are absent.
+            try:
+                timestamps = data.get_timestamps()
+            except Exception:
+                timestamps = None
+            result = calculate_lhipa(pupil, sample_rate, timestamps=timestamps)
             return result.lhipa if result.is_valid else None
 
         except Exception:

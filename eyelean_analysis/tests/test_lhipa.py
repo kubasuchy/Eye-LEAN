@@ -98,3 +98,67 @@ def test_too_short_signal_returns_invalid():
     pupil = np.full(int(SAMPLE_RATE * 1.0), 4.0)
     result = LHIPACalculator(min_duration=5.0).calculate(pupil, sample_rate=SAMPLE_RATE)
     assert not result.is_valid
+
+
+def _jittery_walk():
+    """A ~5.9 s recording whose *median* frame interval (~1/90 s) makes the
+    ``1/median`` 'nominal fps' rate over-estimate the true rate: most frames
+    are fast, a handful hitch. ``len / nominal_rate`` lands just under 5 s,
+    while the true elapsed span is ~5.9 s. Mirrors the real navigation-walk
+    timing that was being falsely rejected as 'Duration too short'.
+    """
+    dt = np.concatenate([np.full(400, 1.0 / 90.0), np.full(30, 0.05)])
+    ts = np.concatenate([[0.0], np.cumsum(dt)])  # 431 monotonic timestamps
+    rng = np.random.default_rng(0)
+    pupil = 4.0 + 0.15 * np.sin(2 * np.pi * 0.8 * ts) + rng.normal(0, 0.03, ts.size)
+    return pupil, ts
+
+
+def test_jittery_timestamps_use_true_elapsed_not_median_rate():
+    pupil, ts = _jittery_walk()
+    nominal_rate = 1.0 / np.median(np.diff(ts))  # the get_sample_rate() convention (~90 Hz)
+
+    # Reproduce the bug: with only the 1/median rate, len/rate under-computes
+    # duration and this genuine >5 s walk is falsely rejected.
+    without_ts = calculate_lhipa(pupil, sample_rate=nominal_rate)
+    assert not without_ts.is_valid
+    assert "Duration too short" in (without_ts.error_message or "")
+
+    # Fix: passing timestamps uses the true elapsed span for the gate + value.
+    with_ts = calculate_lhipa(pupil, sample_rate=nominal_rate, timestamps=ts)
+    assert with_ts.is_valid
+    assert with_ts.duration_s == pytest.approx(float(ts[-1] - ts[0]))
+    assert with_ts.duration_s >= 5.0
+
+
+def test_mismatched_timestamps_fall_back_to_rate():
+    # Wrong-length timestamps must be ignored (not trusted for the span),
+    # falling back to n / sample_rate. Without the guard, ts[-1]-ts[0]=6.0
+    # would wrongly validate this ~4.8 s (by rate) signal.
+    pupil, ts = _jittery_walk()
+    rate = 1.0 / np.median(np.diff(ts))
+    wrong_ts = np.linspace(0.0, 6.0, 10)  # length 10 != len(pupil)
+    res = calculate_lhipa(pupil, sample_rate=rate, timestamps=wrong_ts)
+    assert not res.is_valid
+    assert res.duration_s == pytest.approx(len(pupil) / rate)
+
+
+def test_value_is_normalised_by_true_duration():
+    # LHIPA = count / duration. The count is fixed by the data, so feeding a
+    # different duration must scale the value — proving the timestamps span
+    # flows into the normalisation, not just the gate.
+    n = 1200
+    by_rate_t = np.arange(n) / 120.0        # n / sample_rate  -> 10 s
+    ts = np.linspace(0.0, 20.0, n)          # true elapsed      -> 20 s
+    rng = np.random.default_rng(1)
+    pupil = 4.0 + 0.2 * np.sin(2 * np.pi * 2.0 * by_rate_t) + rng.normal(0, 0.05, n)
+
+    by_rate = calculate_lhipa(pupil, sample_rate=120.0)
+    by_ts = calculate_lhipa(pupil, sample_rate=120.0, timestamps=ts)
+
+    assert by_rate.is_valid and by_ts.is_valid
+    assert by_rate.lhipa > 0.0
+    assert by_rate.duration_s == pytest.approx(10.0)
+    assert by_ts.duration_s == pytest.approx(20.0)
+    # value * duration == count is invariant to the duration we feed.
+    assert by_ts.lhipa * by_ts.duration_s == pytest.approx(by_rate.lhipa * by_rate.duration_s)

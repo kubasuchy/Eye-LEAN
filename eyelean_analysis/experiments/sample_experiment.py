@@ -253,7 +253,14 @@ def _fill_pupil_metrics(report: PhaseReport, data: EyeLeanData) -> None:
 
     pupil = df[pupil_col].to_numpy(dtype=float)
     sample_rate = report.sample_rate_hz or 120.0
-    lhipa_result = calculate_lhipa(pupil, sample_rate=sample_rate)
+    # Pass timestamps so LHIPA gates + normalises on the TRUE elapsed span
+    # rather than len / (1/median(Δt)): frame jitter otherwise under-computes
+    # the duration and drops genuine >=5 s phases as "too short".
+    try:
+        timestamps = data.get_timestamps()
+    except Exception:
+        timestamps = None
+    lhipa_result = calculate_lhipa(pupil, sample_rate=sample_rate, timestamps=timestamps)
     if lhipa_result.is_valid:
         report.lhipa = float(lhipa_result.lhipa)
     else:
