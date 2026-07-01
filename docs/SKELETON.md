@@ -40,6 +40,11 @@ Console shows `[RIPAMonitor] Active`, `[SessionRecorder] CSV
 initialized`, and `[TrialManager] Initialized N trials`. The CSV
 writes with phase / trial / metadata columns. The events sidecar
 logs `TrialStarted`, `TrialPhaseChanged`, and `TrialCompleted` rows.
+The scene ships with `StartingPlatform` + `FixationCross` pre-wired, so
+the loop advances once the participant stands on the start platform — in
+the editor, use the platform's `Test Platform Activation` context menu (or
+set `TrialManager.fixationCrossDuration > 0` to auto-skip the fixation hold).
+The `TrialStarted` rows appear once the first trial begins.
 
 ## How the wizard's scene is laid out
 
@@ -51,7 +56,11 @@ Skeleton.unity
 │   ├── TrialManager        — trial state machine
 │   ├── ExperimentManager   — session-level coordinator
 │   ├── AgentManager        — avatar pool (cube fallback if no Rocketbox)
-│   └── EnvironmentManager  — procedural room
+│   ├── EnvironmentManager  — procedural room
+│   ├── StartingPlatform    — drives ITI->Platform->Fixation (self-positions, renders its bubble)
+│   ├── FixationCross       — shows the cross, drives Fixation->ExperimentalPhase
+│   └── FixationCrossVisual — (child GameObject) the cross the FixationCross component drives
+│       └── FixationCrossImage — Quad + FixationCrossMat (URP/Unlit, transparent)
 ├── EyeTrackingSystem
 │   ├── EyeTracker
 │   ├── HMDDataCollector
