@@ -12,6 +12,23 @@
       },
       "hash": "25a5fd212420688952ead9deba735357656278ec"
     },
+    "com.navlab.experiment-runtime": {
+      "version": "file:com.navlab.experiment-runtime",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "com.navlab.planners": "0.1.0",
+        "com.unity.nuget.newtonsoft-json": "3.2.1"
+      }
+    },
+    "com.navlab.planners": {
+      "version": "file:com.navlab.planners",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "com.unity.nuget.newtonsoft-json": "3.2.1"
+      }
+    },
     "com.unity.ai.navigation": {
       "version": "2.0.10",
       "depth": 0,
@@ -102,6 +119,13 @@
     "com.unity.nuget.mono-cecil": {
       "version": "1.11.6",
       "depth": 3,
+      "source": "registry",
+      "dependencies": {},
+      "url": "https://packages.unity.com"
+    },
+    "com.unity.nuget.newtonsoft-json": {
+      "version": "3.2.1",
+      "depth": 0,
       "source": "registry",
       "dependencies": {},
       "url": "https://packages.unity.com"
