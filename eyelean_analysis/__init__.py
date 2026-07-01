@@ -33,7 +33,7 @@ References:
     - Salvucci & Goldberg (2000). "Identifying fixations and saccades". ETRA '00.
 """
 
-__version__ = "1.0.1"
+__version__ = "1.1.0"
 __author__ = "Eye_lean Project"
 
 # Data loading
