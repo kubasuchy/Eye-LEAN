@@ -439,6 +439,29 @@ when `vergenceDepthMode = TrueConvergence`.
 
 ---
 
+## Disabling cognitive-load collection
+
+The on-line cognitive-load measures are controlled from the **Cognitive Load
+Monitor** section of the EyeTracker inspector — set these before you build:
+
+- **Collect Cognitive Load** (master): when OFF, no monitor is spawned in this
+  scene — no computation, no on-screen gauge, and **no `LiveLoadIndex*` columns
+  are written to the CSV** at all.
+- **RIPA2 / Butterworth / FFT / DWT**: with the master ON, uncheck any method
+  you don't want. A disabled method is neither computed nor written — its
+  `LiveLoadIndex_<method>` column is **omitted from the CSV** (not zero-filled).
+- **Displayed Method**: which enabled method drives the gauge and the legacy
+  `LiveLoadIndex` column; falls back to the first enabled method if the chosen
+  one is disabled.
+
+Scope: these settings apply to the scene containing this EyeTracker, and are
+honored during deterministic replay of that scene. Scenes without an EyeTracker
+(e.g. the main menu) still spawn a harmless, write-nothing monitor. To force
+collection off across *every* scene regardless of the rig, set the static
+`RIPAMonitorBootstrap.DisableAutoSpawn = true` before scene load.
+
+---
+
 ## API
 
 File: `Assets/Scripts/EyeTracking/Components/EyeTracker.cs`

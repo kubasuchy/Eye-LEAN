@@ -7,11 +7,16 @@ namespace EyeTracking.Metrics
 {
     /// <summary>
     /// Auto-spawns a <see cref="RIPAMonitor"/> into every scene that does
-    /// not already contain one. Set <see cref="DisableAutoSpawn"/> before
-    /// scene load to opt out for a specific scene.
+    /// not already contain one, UNLESS the scene's
+    /// <see cref="ICognitiveLoadConfigProvider"/> (Eye_lean's EyeTracker)
+    /// reports collection disabled — in which case no monitor, no CSV columns,
+    /// and no HUD are created. Provider-less scenes default to all-on. Set
+    /// <see cref="DisableAutoSpawn"/> before scene load to force-opt-out
+    /// globally regardless of any provider.
     ///
-    /// Behavior during deterministic replay (v1.0.1+): the monitor IS
-    /// spawned and pulls pupil samples from <see cref="ReplayingEyeTracker"/>
+    /// Behavior during deterministic replay (v1.0.1+): when the scene config
+    /// enables collection, the monitor IS spawned and pulls pupil samples from
+    /// <see cref="ReplayingEyeTracker"/>
     /// via <c>EyeTrackerFactory</c>. All enabled detectors recompute against
     /// the recorded pupil stream, producing the same values that were
     /// recorded live. The researcher can switch <c>DisplayedMethod</c> at
@@ -74,21 +79,44 @@ namespace EyeTracking.Metrics
         private void EnsureMonitorInActiveScene()
         {
             if (DisableAutoSpawn) return;
-            // v1.0.1: monitor now runs during replay too — detectors
-            // recompute deterministically against ReplayingEyeTracker's
-            // recorded pupil stream, letting the researcher switch
-            // DisplayedMethod at replay time.
 
             var existing = FindFirstObjectByType<RIPAMonitor>();
-            if (existing != null) return;
+            if (existing != null) return; // a manually placed monitor wins; configure it directly.
+
+            // Resolve this scene's collection preferences. Provider-less scenes
+            // (e.g. a menu with no rig) use Default (all on) so nothing changes
+            // for them. The same scene-authored config is read during replay,
+            // so "off" is honored on playback too.
+            CognitiveLoadConfig cfg = ResolveConfig();
+            if (!cfg.CollectsAnything) return; // master off (or every method off) → no monitor, no columns, no HUD.
 
             var go = new GameObject("[RIPAMonitor]");
             // Scope to the active scene; DDOL would survive scene transitions
             // and break per-scene reset semantics.
             SceneManager.MoveGameObjectToScene(go, SceneManager.GetActiveScene());
-            go.AddComponent<RIPAMonitor>();
-            // CSVColumn no-ops when no SessionRecorder is present.
+            var monitor = go.AddComponent<RIPAMonitor>();
+            // Apply BEFORE RIPAMonitor.Start()/BuildDetectors runs (AddComponent
+            // ran Awake synchronously; Start is later this frame).
+            monitor.ApplyConfig(cfg);
+            // CSVColumn no-ops when no SessionRecorder is present; when present it
+            // reads monitor.CurrentConfig in its Awake to pick enabled columns.
             go.AddComponent<RIPACSVColumn>();
+        }
+
+        /// <summary>
+        /// Find the active scene's first <see cref="ICognitiveLoadConfigProvider"/>
+        /// (Eye_lean's EyeTracker). Falls back to <see cref="CognitiveLoadConfig.Default"/>
+        /// when none is present.
+        /// </summary>
+        private static CognitiveLoadConfig ResolveConfig()
+        {
+            var behaviours = FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None);
+            for (int i = 0; i < behaviours.Length; i++)
+            {
+                if (behaviours[i] is ICognitiveLoadConfigProvider provider)
+                    return provider.GetCognitiveLoadConfig();
+            }
+            return CognitiveLoadConfig.Default;
         }
     }
 }

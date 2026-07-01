@@ -107,6 +107,14 @@ CSV header lines (always-on for v1.3+):
   per-detector columns `LiveLoadIndex_RIPA2`, `LiveLoadIndex_BW`,
   `LiveLoadIndex_BW_Raw`, `LiveLoadIndex_FFT`, `LiveLoadIndex_DWT`
   (v1.0.1+).
+
+  > **Config-dependent cognitive-load columns:** the `LiveLoadIndex` and
+  > `LiveLoadIndex_<method>` columns are present only for methods enabled on the
+  > scene's EyeTracker. Disabling a method (or the master switch) OMITS its
+  > column entirely — it is not written as zeros. Downstream tooling (e.g.
+  > `eyelean_analysis`) must therefore tolerate MISSING `LiveLoadIndex*` columns,
+  > not just zero values.
+
 - **`SceneStateRecorder` + `SceneEventRecorder`** subscribe to
   `OnHeaderWritten` to lock their own schemas in lockstep.
 - **`ReplayMode.IsActive` short-circuit:** during deterministic

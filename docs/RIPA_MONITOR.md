@@ -23,6 +23,13 @@ so the CSV gains the column(s) without manual wiring.
 - Cite RIPA2 when publishing data using `LiveLoadIndex` — see
   `ACKNOWLEDGMENTS.md`.
 
+> **Spawn gating (2026-07):** the auto-spawned monitor is now suppressed when
+> the scene's `EyeTracker` (via `ICognitiveLoadConfigProvider`) reports
+> collection disabled. `RIPAMonitorBootstrap` calls `RIPAMonitor.ApplyConfig`
+> before `Start()`, and `RIPACSVColumn` registers a column only for methods
+> where `RIPAMonitor.IsMethodEnabled(...)` is true. Manually placed monitors
+> are unaffected (configure them on their own inspector).
+
 ---
 
 ## What RIPA2 measures

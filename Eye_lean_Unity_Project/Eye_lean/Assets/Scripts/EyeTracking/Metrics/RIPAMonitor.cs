@@ -214,6 +214,53 @@ namespace EyeTracking.Metrics
             return null;
         }
 
+        /// <summary>
+        /// Apply a scene config resolved by <see cref="RIPAMonitorBootstrap"/>. MUST
+        /// be called after AddComponent and BEFORE Start()/BuildDetectors so the
+        /// enable flags take effect when detectors are built. Sets the master switch,
+        /// per-method flags, and displayed method; leaves overlay + filter sizing at
+        /// their serialized defaults.
+        /// </summary>
+        public void ApplyConfig(CognitiveLoadConfig cfg)
+        {
+            enableMonitor = cfg.Collect;
+            enableRipa2 = cfg.Ripa2;
+            enableButterworth = cfg.Butterworth;
+            enableFft = cfg.Fft;
+            enableDwt = cfg.Dwt;
+            displayedMethod = cfg.DisplayedMethod;
+        }
+
+        /// <summary>
+        /// Whether a given method is enabled on this monitor, honoring the master
+        /// switch. Reads the serialized flags directly (valid immediately after
+        /// <see cref="ApplyConfig"/>, before BuildDetectors runs), so
+        /// <see cref="RIPACSVColumn"/> can decide column membership at Awake time.
+        /// </summary>
+        public bool IsMethodEnabled(CognitiveLoadMethod method)
+        {
+            if (!enableMonitor) return false;
+            switch (method)
+            {
+                case CognitiveLoadMethod.RIPA2: return enableRipa2;
+                case CognitiveLoadMethod.Butterworth: return enableButterworth;
+                case CognitiveLoadMethod.FFT: return enableFft;
+                case CognitiveLoadMethod.DWT: return enableDwt;
+                default: return false;
+            }
+        }
+
+        /// <summary>The monitor's current enable flags as a <see cref="CognitiveLoadConfig"/>.</summary>
+        public CognitiveLoadConfig CurrentConfig => new CognitiveLoadConfig
+        {
+            Collect = enableMonitor,
+            Ripa2 = enableRipa2,
+            Butterworth = enableButterworth,
+            Fft = enableFft,
+            Dwt = enableDwt,
+            DisplayedMethod = displayedMethod,
+        };
+
         // ---- Internals ----
 
         private readonly List<ICognitiveLoadDetector> activeDetectors = new List<ICognitiveLoadDetector>();

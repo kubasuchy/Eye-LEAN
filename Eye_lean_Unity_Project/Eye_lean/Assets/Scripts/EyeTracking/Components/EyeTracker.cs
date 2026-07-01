@@ -24,7 +24,7 @@ namespace EyeTracking.Components
     /// rendering (Unity 6000.3.9f1). Affects ONLY the LineRenderer;
     /// snapshot, CSV and vergence math use the true tracker origins.
     /// </summary>
-    public class EyeTracker : MonoBehaviour
+    public class EyeTracker : MonoBehaviour, ICognitiveLoadConfigProvider
     {
         [Header("Vergence Depth Mode")]
         [Tooltip("TrueConvergence: eye convergence math (~1.5-2.3m hardware cap on VIVE). DepthExtension: math vergence near, raycast extension to colliders far.")]
@@ -66,6 +66,18 @@ namespace EyeTracking.Components
         [SerializeField] private bool spawnCognitiveLoadOverlay = false;
         [Tooltip("Screen corner the auto-spawned overlay anchors to. Ignored if spawnCognitiveLoadOverlay is off.")]
         [SerializeField] private RIPAOverlay.Corner cognitiveLoadOverlayCorner = RIPAOverlay.Corner.TopLeft;
+        [Tooltip("Master switch for on-line cognitive-load collection (RIPA2 / Butterworth / FFT / DWT). OFF = no monitor spawns: no computation, no LiveLoadIndex CSV columns, no on-screen gauge. Read by RIPAMonitorBootstrap at scene load; honored in replay too.")]
+        [SerializeField] private bool collectCognitiveLoad = true;
+        [Tooltip("Run the RIPA2 detector (Jayawardena 2025). Ignored when Collect Cognitive Load is off. Disabling omits the LiveLoadIndex_RIPA2 column.")]
+        [SerializeField] private bool cognitiveLoadRipa2 = true;
+        [Tooltip("Run the Butterworth IIR LF/HF detector (Duchowski 2026). Disabling omits the LiveLoadIndex_BW (and _BW_Raw) columns.")]
+        [SerializeField] private bool cognitiveLoadButterworth = true;
+        [Tooltip("Run the FFT periodogram LF/HF detector (Duchowski 2026). Disabling omits the LiveLoadIndex_FFT column.")]
+        [SerializeField] private bool cognitiveLoadFft = true;
+        [Tooltip("Run the db4 DWT LF/HF detector (Duchowski 2026). Disabling omits the LiveLoadIndex_DWT column.")]
+        [SerializeField] private bool cognitiveLoadDwt = true;
+        [Tooltip("Which enabled method drives the on-screen gauge and the legacy LiveLoadIndex column. If the chosen method is disabled, the monitor falls back to the first enabled one.")]
+        [SerializeField] private CognitiveLoadMethod cognitiveLoadDisplayedMethod = CognitiveLoadMethod.RIPA2;
 
         // Visualization-only lateral offset (see class summary).
         private const float VizOriginLateralOffsetMeters = 0.08f;
@@ -171,7 +183,7 @@ namespace EyeTracking.Components
             // the scene hierarchy under this rig. Runtime visibility is
             // governed by RIPAMonitor.ShowOverlay — the overlay polls each
             // frame, so any component can flip it without owning this GO.
-            if (spawnCognitiveLoadOverlay && FindFirstObjectByType<RIPAOverlay>() == null)
+            if (GetCognitiveLoadConfig().CollectsAnything && spawnCognitiveLoadOverlay && FindFirstObjectByType<RIPAOverlay>() == null)
             {
                 // Create the GameObject inactive, set the corner, then
                 // activate — so RIPAOverlay's OnEnable+Build see the
@@ -793,6 +805,24 @@ namespace EyeTracking.Components
         }
 
         public DataQualityMetrics GetQualityMetrics() => dataQualityMetrics;
+
+        /// <summary>
+        /// Cognitive-load collection preferences for this scene's rig, read by
+        /// RIPAMonitorBootstrap before it decides whether/how to spawn the
+        /// monitor. See <see cref="CognitiveLoadConfig"/>.
+        /// </summary>
+        public CognitiveLoadConfig GetCognitiveLoadConfig()
+        {
+            return new CognitiveLoadConfig
+            {
+                Collect = collectCognitiveLoad,
+                Ripa2 = cognitiveLoadRipa2,
+                Butterworth = cognitiveLoadButterworth,
+                Fft = cognitiveLoadFft,
+                Dwt = cognitiveLoadDwt,
+                DisplayedMethod = cognitiveLoadDisplayedMethod,
+            };
+        }
 
         public void LogPerformanceStats()
         {

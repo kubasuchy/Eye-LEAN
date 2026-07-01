@@ -13,17 +13,17 @@ namespace EyeTracking.Metrics
     /// <see cref="SessionRecorder"/>; if no recorder is present this
     /// component is inert.
     ///
-    /// CSV layout (v1.0.1+):
+    /// CSV layout (v1.0.1+) — per-method columns appear ONLY when that method is enabled:
     ///   • <c>LiveLoadIndex</c>           — displayed detector's smoothed value (back-compat with v1.0–v1.3 tooling).
-    ///   • <c>LiveLoadIndex_RIPA2</c>     — RIPA2 smoothed value.
-    ///   • <c>LiveLoadIndex_BW</c>        — Butterworth LF/HF smoothed value.
-    ///   • <c>LiveLoadIndex_BW_Raw</c>    — Butterworth raw LF/HF ratio (optional).
-    ///   • <c>LiveLoadIndex_FFT</c>       — FFT periodogram LF/HF smoothed value.
-    ///   • <c>LiveLoadIndex_DWT</c>       — db4 DWT LF/HF smoothed value.
+    ///   • <c>LiveLoadIndex_RIPA2</c>     — RIPA2 smoothed value (when enabled).
+    ///   • <c>LiveLoadIndex_BW</c>        — Butterworth LF/HF smoothed value (when enabled).
+    ///   • <c>LiveLoadIndex_BW_Raw</c>    — Butterworth raw LF/HF ratio (when enabled and butterworthRecordRawRatio is on).
+    ///   • <c>LiveLoadIndex_FFT</c>       — FFT periodogram LF/HF smoothed value (when enabled).
+    ///   • <c>LiveLoadIndex_DWT</c>       — db4 DWT LF/HF smoothed value (when enabled).
     ///
     /// The per-detector columns let downstream tooling and the replay system
-    /// switch between methods without recomputing — every method's value is
-    /// always recorded regardless of which one was on-screen at the time.
+    /// switch between methods without recomputing — columns are registered only
+    /// for methods that are enabled in the CognitiveLoadConfig.
     ///
     /// Registration must occur before the recorder locks its CSV header —
     /// added at execution order -40 to satisfy that ordering.
@@ -60,47 +60,48 @@ namespace EyeTracking.Metrics
             }
             if (monitor == null)
             {
-                // Monitor hasn't been spawned yet by the bootstrap. The
-                // value getters resolve lazily; we register columns now so
-                // the header is correct, but values will be 0 until the
-                // bootstrap creates the monitor.
-                Debug.LogWarning("[RIPACSVColumn] No RIPAMonitor in scene at Awake; columns will register but values are 0 until a monitor appears.");
+                Debug.LogWarning("[RIPACSVColumn] No RIPAMonitor in scene at Awake; no cognitive-load columns will be registered.");
             }
-
-            RegisterColumns();
+            RegisterColumnsFor(recorder, monitor);
         }
 
-        private void RegisterColumns()
+        /// <summary>
+        /// Register one CSV column per ENABLED cognitive-load method (plus the
+        /// legacy alias when at least one method is on) against the given
+        /// recorder. Columns for disabled methods are OMITTED entirely (not
+        /// zero-filled), so the CSV header is config-dependent as of this
+        /// feature. Public + parameterized so EditMode tests can drive it
+        /// without the scene-scanning Awake path.
+        /// </summary>
+        public void RegisterColumnsFor(SessionRecorder targetRecorder, RIPAMonitor targetMonitor)
         {
-            // Legacy alias: reflects the displayed detector. Preserves
-            // v1.0–v1.3 downstream tooling that reads `LiveLoadIndex`.
-            if (!string.IsNullOrEmpty(legacyColumnName))
-            {
-                recorder.RegisterMetric(legacyColumnName, () => DisplayedValue(useSmoothedValue), format);
-                registered.Add(legacyColumnName);
-            }
+            if (targetRecorder == null) return;
+            recorder = targetRecorder;
+            monitor = targetMonitor;
 
-            // Always register a column per known detector method so the CSV
-            // schema is stable across sessions (zeros for disabled methods
-            // are clearer than columns appearing/disappearing). The
-            // value-getter checks at write time whether the detector exists.
-            RegisterPerDetector(CognitiveLoadMethod.RIPA2, "RIPA2");
-            RegisterPerDetector(CognitiveLoadMethod.Butterworth, "BW");
-            if (butterworthRecordRawRatio)
-            {
-                string name = "LiveLoadIndex_BW_Raw";
-                recorder.RegisterMetric(name, () => DetectorRaw(CognitiveLoadMethod.Butterworth), format);
-                registered.Add(name);
-            }
-            RegisterPerDetector(CognitiveLoadMethod.FFT, "FFT");
-            RegisterPerDetector(CognitiveLoadMethod.DWT, "DWT");
-        }
+            // A null/absent monitor yields default(CognitiveLoadConfig) whose
+            // Collect is false, so Plan returns an empty list → no columns.
+            CognitiveLoadConfig cfg = targetMonitor != null ? targetMonitor.CurrentConfig : default;
+            var plan = CognitiveLoadColumns.Plan(cfg, butterworthRecordRawRatio, legacyColumnName);
 
-        private void RegisterPerDetector(CognitiveLoadMethod method, string suffix)
-        {
-            string name = "LiveLoadIndex_" + suffix;
-            recorder.RegisterMetric(name, () => DetectorValue(method, useSmoothedValue), format);
-            registered.Add(name);
+            for (int i = 0; i < plan.Count; i++)
+            {
+                CognitiveLoadColumn col = plan[i];
+                CognitiveLoadMethod m = col.Method; // capture for the closures below
+                switch (col.Kind)
+                {
+                    case CognitiveLoadColumnKind.LegacyDisplayed:
+                        recorder.RegisterMetric(col.Name, () => DisplayedValue(useSmoothedValue), format);
+                        break;
+                    case CognitiveLoadColumnKind.DetectorSmoothed:
+                        recorder.RegisterMetric(col.Name, () => DetectorValue(m, useSmoothedValue), format);
+                        break;
+                    case CognitiveLoadColumnKind.DetectorRaw:
+                        recorder.RegisterMetric(col.Name, () => DetectorRaw(m), format);
+                        break;
+                }
+                registered.Add(col.Name);
+            }
         }
 
         private float DisplayedValue(bool smoothed)
